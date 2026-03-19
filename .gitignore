@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+
+# 运行输出
+results/
+
+# 本地工具配置
+.claude/settings.local.json
+
+# 本地演示用 Git 仓库（体积大，可用任意 `-r` 路径代替）
+demo_bare.git/
+demo_project/

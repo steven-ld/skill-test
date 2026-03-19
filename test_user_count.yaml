@@ -1,0 +1,55 @@
+cli:
+  command: claude.cmd
+  base_args:
+    - "--print"
+    - "--dangerously-skip-permissions"
+  timeout: 600
+
+git:
+  author_name: "AI Skill Tester"
+  author_email: "skill-test@local"
+  base_branch: master
+  branch_prefix: skill-test
+  auto_push: false
+  cleanup_on_finish: true
+
+retry:
+  max_retries: 1
+  retry_on_timeout: true
+  retry_on_failure: false
+
+max_workers: 2
+output_dir: results
+
+report_formats:
+  - text
+  - json
+  - markdown
+
+tasks:
+  - id: user-count-api
+    name: "查询用户数量接口"
+    prompt: |
+      实现一个查询所有用户数量的接口，需求如下：
+      1. 需要鉴权（使用项目现有的鉴权方式）
+      2. 使用 Redis 缓存数据，10 分钟有效期
+      3. 只统计 deleted = 0 的用户（未删除的用户）
+      4. 在 cloud-member 模块中实现
+      5. 使用 MyBatis-Plus 查询
+      6. 遵循项目现有的分层和代码风格
+      7. 必须复用已有的 Controller / Service / Repository，不要创建新的类
+      
+      请直接实现代码，写完后保存文件。
+    timeout: 600
+
+skills:
+  - name: baseline
+    # 无 Skill — 作为基线对照
+
+  - name: dl-cloud-project-rules
+    skill_file: "C:\\Users\\18528\\Desktop\\DesignLibro\\.claude\\skills\\dl-cloud-project-rules\\SKILL.md"
+    ref_files:
+      - "references\\architecture-rules.md"
+      - "references\\api-and-domain-rules.md"
+      - "references\\data-and-integration-rules.md"
+      - "references\\coding-patterns.md"

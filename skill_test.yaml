@@ -1,0 +1,63 @@
+# AI Skill 测试框架配置文件
+# 文档: python -m skill_test --help
+
+cli:
+  command: claude          # Windows 改为 claude.cmd
+  base_args:
+    - "--print"
+    - "--dangerously-skip-permissions"
+  timeout: 300             # 单个任务超时（秒）
+
+git:
+  author_name: "AI Skill Tester"
+  author_email: "skill-test@local"
+  base_branch: main        # worktree 基于哪个分支创建
+  branch_prefix: skill-test
+  auto_push: false
+  cleanup_on_finish: true
+
+max_workers: 3             # 并行执行上限
+output_dir: results        # 报告输出目录
+
+report_formats:
+  - text
+  - json
+  # - markdown
+  # - html
+
+tasks:
+  - id: task_001
+    name: "Python 快速排序"
+    prompt: |
+      实现一个快速排序算法，要求：
+      1. 使用 Python
+      2. 包含类型标注和文档字符串
+      3. 包含单元测试
+    timeout: 180
+
+  - id: task_002
+    name: "API 错误处理"
+    prompt: |
+      重构以下代码的错误处理逻辑，使其更加健壮：
+      ```python
+      def fetch_data(url):
+          response = requests.get(url)
+          return response.json()
+      ```
+
+skills:
+  - name: baseline
+    # 不设置 system_prompt = 基线对照
+
+  - name: write-expert
+    system_prompt: "你是专业的代码编写专家，擅长生成高质量、结构清晰的代码。"
+
+  - name: review-expert
+    system_prompt: "你是专业的代码审查专家，擅长发现代码问题、提供改进建议。"
+
+  # 从文件加载 Skill（适合大型 Skill 定义）
+  # - name: project-rules
+  #   skill_file: ".claude/skills/dl-cloud-project-rules/SKILL.md"
+  #   ref_files:
+  #     - "references/architecture-rules.md"
+  #     - "references/api-and-domain-rules.md"
