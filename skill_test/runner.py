@@ -19,14 +19,15 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from .executor import ClaudeExecutor
+from .openai_executor import OpenAIResponsesExecutor
 from .git_manager import GitClient, WorktreeManager, CommitManager
 from .log import get_logger
 from .models import (
     AppConfig, TaskConfig, SkillConfig, TaskResult, TaskStatus,
-    WorktreeInfo, RetryConfig, RunSession, ExperimentMode,
+    WorktreeInfo, RetryConfig, RunSession, ExperimentMode, DEFAULT_CODING_TIMEOUT_SECONDS,
 )
 from .progress import ProgressDashboard, RICH_AVAILABLE
 
@@ -64,6 +65,31 @@ def _resolve_experiment_mode(task: TaskConfig, experiment_mode: str | None) -> s
     return experiment_mode
 
 
+def resolve_run_mode(
+    mode: str,
+    *,
+    has_repo: bool,
+    commit: bool = False,
+    push: bool = False,
+) -> str:
+    resolved = "isolated" if mode == "auto" and has_repo else ("parallel" if mode == "auto" else mode)
+    if commit or push:
+        if not has_repo:
+            raise ValueError("启用 commit/push 需要提供 repo_path，并使用 isolated 模式。")
+        if resolved != "isolated":
+            log.info("启用 commit/push，执行模式从 %s 自动切换为 isolated", resolved)
+            resolved = "isolated"
+    return resolved
+
+
+def _resolve_timeout(task: TaskConfig, config_timeout: int, experiment_mode: str) -> int:
+    if task.timeout:
+        return task.timeout
+    if experiment_mode == ExperimentMode.CODING.value:
+        return max(config_timeout, DEFAULT_CODING_TIMEOUT_SECONDS)
+    return config_timeout
+
+
 def _build_task_prompt(task: TaskConfig, skill: SkillConfig, experiment_mode: str) -> tuple[str, str]:
     deliverable_dir = f".skill-test/deliverables/{_slug(task.id)}"
     skill_slug = _slug(skill.name or "baseline")
@@ -85,7 +111,8 @@ def _build_task_prompt(task: TaskConfig, skill: SkillConfig, experiment_mode: st
             "当前执行的是 Coding 模式。\n"
             "请直接完成实现，并确保变更已经写入工作区文件。\n"
             f"完成后请补充一份交付说明到 `{deliverable_path}`，说明改动摘要、影响范围、验证方式和剩余风险。\n"
-            "交付结果以 Git 提交/推送记录为准，请保持变更处于可提交状态。"
+            "交付结果以 Git 提交/推送记录为准，请保持变更处于可提交状态。\n"
+            "不要在最终回复中虚构已提交、已推送、已创建的文件或代码变更；只有在实际完成且可验证时才能声明这些结果。"
         )
 
     expected = ""
@@ -102,16 +129,83 @@ def _build_task_prompt(task: TaskConfig, skill: SkillConfig, experiment_mode: st
     return prompt, deliverable_path
 
 
+def _resolve_deliverable_file(work_dir: Path, deliverable_path: str) -> Path | None:
+    if not deliverable_path:
+        return None
+    path = Path(deliverable_path)
+    return path if path.is_absolute() else work_dir / path
+
+
+def _validate_result_artifacts(
+    result: TaskResult,
+    *,
+    work_dir: Path,
+    experiment_mode: str,
+    commit_requested: bool = False,
+    push_requested: bool = False,
+) -> TaskResult:
+    if not result.success:
+        return result
+
+    validation_errors: list[str] = []
+    files_count = len(result.files_changed) or int((result.change_summary or {}).get("total_files", 0) or 0)
+    result.metadata["files_detected"] = files_count
+
+    deliverable_file = _resolve_deliverable_file(work_dir, result.deliverable_path)
+    deliverable_exists = bool(deliverable_file and deliverable_file.is_file())
+    result.metadata["deliverable_exists"] = deliverable_exists
+    if deliverable_file:
+        result.metadata["deliverable_file"] = str(deliverable_file)
+        if not deliverable_exists:
+            validation_errors.append(f"交付文件未生成: {result.deliverable_path}")
+
+    if experiment_mode == ExperimentMode.CODING.value and files_count <= 0:
+        validation_errors.append("Coding 模式未检测到任何文件变更")
+
+    if commit_requested and not result.commit_hash:
+        commit_error = result.metadata.get("commit_error")
+        if commit_error:
+            validation_errors.append(f"Git 提交失败: {commit_error.splitlines()[0]}")
+        else:
+            validation_errors.append("已启用 commit，但未生成有效提交")
+
+    if push_requested and not result.pushed:
+        validation_errors.append("已启用 push，但未完成推送")
+
+    if not validation_errors:
+        return result
+
+    result.metadata["original_status"] = result.status.value
+    result.metadata["validation_errors"] = validation_errors
+    result.status = TaskStatus.FAILED
+    result.error = "；".join(validation_errors)
+    log.warning(
+        "结果校验失败 | task=%s | skill=%s | %s",
+        result.task_id or result.task_name,
+        result.skill_name,
+        result.error,
+    )
+    return result
+
+
+def _can_publish_pr_link(result: TaskResult) -> bool:
+    if not result.success:
+        return False
+    if result.metadata.get("cloud_store_requested"):
+        return bool(result.metadata.get("cloud_stored"))
+    return True
+
+
 def _run_one(
-    executor: ClaudeExecutor,
+    executor: Any,
     task: TaskConfig,
     skill: SkillConfig,
     work_dir: str | Path | None,
     experiment_mode: str,
     retry: RetryConfig | None = None,
 ) -> TaskResult:
-    timeout = task.timeout or executor.config.timeout
     resolved_mode = _resolve_experiment_mode(task, experiment_mode)
+    timeout = _resolve_timeout(task, executor.config.timeout, resolved_mode)
     prompt, deliverable_path = _build_task_prompt(task, skill, resolved_mode)
     if retry and retry.max_retries > 0:
         result = executor.execute_with_retry(
@@ -181,7 +275,7 @@ class TestRunner:
         enable_history: bool = True,
     ):
         self.config = config
-        self.executor = ClaudeExecutor(config.cli)
+        self.executor = OpenAIResponsesExecutor(config.openai) if config.openai.enabled else ClaudeExecutor(config.cli)
         if repo_path and isinstance(repo_path, (list, tuple)):
             self.repo_paths = [Path(path) for path in repo_path]
         elif repo_path:
@@ -509,6 +603,7 @@ class TestRunner:
                 def _do(task, skill):
                     self._emit_started(task, skill, experiment_mode)
                     wt_info = wt_map[(task.id, skill.name)]
+                    resolved_mode = _resolve_experiment_mode(task, experiment_mode)
 
                     if isinstance(wt_info, WorktreeInfo):
                         repo_key = str(Path(wt_info.repo).resolve())
@@ -534,11 +629,21 @@ class TestRunner:
                                 if push:
                                     self._commit_mgrs[repo_key].push(wt_info)
                                     result.metadata["pushed"] = True
+                                    if _can_publish_pr_link(result):
+                                        pr_url = self._commit_mgrs[repo_key].build_pr_url(wt_info)
+                                        if pr_url:
+                                            result.metadata["pr_url"] = pr_url
                             except Exception as e:
                                 result.metadata["commit_error"] = str(e)
                         elif commit:
                             result.metadata["committed"] = False
-                        return result
+                        return _validate_result_artifacts(
+                            result,
+                            work_dir=wt_info.path,
+                            experiment_mode=resolved_mode,
+                            commit_requested=commit,
+                            push_requested=push,
+                        )
 
                     workspace_root = wt_info["workspace_root"]
                     repo_worktrees = wt_info["worktrees"]
@@ -578,6 +683,10 @@ class TestRunner:
                                     self._commit_mgrs[repo_key].push(repo_wt)
                                     repo_record["pushed"] = True
                                     pushed_any = True
+                                    if _can_publish_pr_link(result):
+                                        repo_pr_url = self._commit_mgrs[repo_key].build_pr_url(repo_wt)
+                                        if repo_pr_url:
+                                            repo_record["pr_url"] = repo_pr_url
                             except Exception as e:
                                 repo_record["commit_error"] = str(e)
                         repo_summaries.append(repo_record)
@@ -591,7 +700,26 @@ class TestRunner:
                     result.metadata["commit_hash"] = ", ".join(hash_[:8] for hash_ in commit_hashes)
                     result.metadata["committed"] = bool(commit_hashes)
                     result.metadata["pushed"] = pushed_any
-                    return result
+                    pr_urls = [
+                        {
+                            "repo": item.get("repo", ""),
+                            "branch": item.get("branch", ""),
+                            "url": item.get("pr_url", ""),
+                        }
+                        for item in repo_summaries
+                        if item.get("pr_url")
+                    ]
+                    if pr_urls:
+                        result.metadata["pr_urls"] = pr_urls
+                        if len(pr_urls) == 1:
+                            result.metadata["pr_url"] = pr_urls[0]["url"]
+                    return _validate_result_artifacts(
+                        result,
+                        work_dir=workspace_root,
+                        experiment_mode=resolved_mode,
+                        commit_requested=commit,
+                        push_requested=push,
+                    )
 
                 with ThreadPoolExecutor(max_workers=workers) as pool:
                     futures = {pool.submit(_do, t, s): (t, s) for t, s in plan.items()}
@@ -628,15 +756,19 @@ class TestRunner:
     def run(
         self,
         *,
-        mode="auto",
+        mode="isolated",
         experiment_mode="task",
         tasks=None,
         skills=None,
         commit=False,
         push=False,
     ) -> list[TaskResult]:
-        if mode == "auto":
-            mode = "isolated" if self.repo_path else "parallel"
+        mode = resolve_run_mode(
+            mode,
+            has_repo=bool(self.repo_paths),
+            commit=commit,
+            push=push,
+        )
 
         self._session = RunSession(
             config_name=getattr(self.config, '_config_name', ''),

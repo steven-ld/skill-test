@@ -1,14 +1,33 @@
 cli:
-  command: claude.cmd
+  # 兼容保留：当 openai.enabled=false 时继续走本地 Claude/Codex CLI
+  command: claude
   base_args:
     - "--print"
     - "--dangerously-skip-permissions"
   timeout: 1000
 
+openai:
+  enabled: true
+  # 推荐通过环境变量注入，不要把真实密钥写进 YAML
+  api_key_env: OPENAI_API_KEY
+  # 如果你接的是兼容 Responses API 的网关，可以在这里填 base_url
+  base_url: ""
+  # 可按成本/效果自行替换；这是一个偏 coding 的默认值
+  model: gpt-5.3-codex
+  api_mode: responses
+  timeout: 1000
+  # 新接入优先推荐 shell；如果要兼容 codex-mini-latest 工作流，可改成 local_shell
+  tool_type: shell
+  store: false
+  reasoning_effort: medium
+  max_tool_rounds: 12
+  shell_timeout_ms: 120000
+  max_output_chars: 16000
+
 git:
   author_name: "AI Skill Tester"
   author_email: "skill-test@local"
-  base_branch: master
+  base_branch: main
   branch_prefix: skill-test
   auto_push: false
   cleanup_on_finish: true
@@ -19,7 +38,7 @@ retry:
   retry_on_failure: false
   timeout_increment_on_timeout: 300
 
-max_workers: 2
+max_workers: 1
 output_dir: results
 
 report_formats:
@@ -30,6 +49,7 @@ report_formats:
 tasks:
   - id: user-count-api
     name: "查询用户数量接口"
+    mode: coding
     prompt: |
       实现一个查询所有用户数量的接口，需求如下：
       1. 需要鉴权（使用项目现有的鉴权方式）
@@ -39,18 +59,9 @@ tasks:
       5. 使用 MyBatis-Plus 查询
       6. 遵循项目现有的分层和代码风格
       7. 必须复用已有的 Controller / Service / Repository，不要创建新的类
-      
-      请直接实现代码，写完后保存文件。
-    timeout: 1000
 
 skills:
   - name: baseline
-    # 无 Skill — 作为基线对照
-
-  - name: dl-cloud-project-rules
-    skill_file: "C:\\Users\\18528\\Desktop\\DesignLibro\\.claude\\skills\\dl-cloud-project-rules\\SKILL.md"
-    ref_files:
-      - "references\\architecture-rules.md"
-      - "references\\api-and-domain-rules.md"
-      - "references\\data-and-integration-rules.md"
-      - "references\\coding-patterns.md"
+    tool: builtin
+    origin: builtin
+    description: "OpenAI Responses API 基线组"

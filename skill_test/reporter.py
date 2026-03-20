@@ -87,10 +87,20 @@ def format_text(results: list[TaskResult]) -> str:
         if r.commit_hash:
             push_text = "已推送" if r.pushed else "未推送"
             lines.append(f"         提交: {r.commit_hash[:12]} ({push_text})")
+        if r.pr_url:
+            lines.append(f"         PR: {r.pr_url}")
+        elif r.pr_urls:
+            for item in r.pr_urls[:3]:
+                if item.get("url"):
+                    repo_name = Path(item.get("repo", "")).name or "repo"
+                    lines.append(f"         PR[{repo_name}]: {item['url']}")
         if r.deliverable_path:
             lines.append(f"         交付: {r.deliverable_path}")
         if r.files_changed:
             lines.append(f"         变更: {len(r.files_changed)} 个文件")
+        validation_errors = r.metadata.get("validation_errors") or []
+        if validation_errors:
+            lines.append(f"         校验: {'；'.join(validation_errors[:3])}")
         if r.error:
             lines.append(f"         错误: {r.error[:120]}")
 
@@ -170,10 +180,20 @@ def format_markdown(results: list[TaskResult]) -> str:
         if r.commit_hash:
             lines.append(f"- **提交**: `{r.commit_hash}`")
             lines.append(f"- **推送**: {'是' if r.pushed else '否'}")
+        if r.pr_url:
+            lines.append(f"- **PR 链接**: {r.pr_url}")
+        elif r.pr_urls:
+            for item in r.pr_urls[:3]:
+                if item.get("url"):
+                    repo_name = Path(item.get("repo", "")).name or "repo"
+                    lines.append(f"- **PR 链接 ({repo_name})**: {item['url']}")
         if r.deliverable_path:
             lines.append(f"- **交付文件**: `{r.deliverable_path}`")
         if r.files_changed:
             lines.append(f"- **变更文件**: {len(r.files_changed)}")
+        validation_errors = r.metadata.get("validation_errors") or []
+        if validation_errors:
+            lines.append(f"- **校验失败**: `{'；'.join(validation_errors[:3])}`")
         if r.error:
             lines.append(f"- **错误**: `{r.error[:200]}`")
         lines.append("")
@@ -205,6 +225,20 @@ def format_html(results: list[TaskResult]) -> str:
     for r in results:
         cls = "ok" if r.success else "fail"
         commit_text = r.commit_hash[:10] if r.commit_hash else "-"
+        pr_cell = "-"
+        if r.pr_url:
+            pr_cell = f'<a href="{r.pr_url}" target="_blank" rel="noreferrer">打开</a>'
+        elif r.pr_urls:
+            links = []
+            for item in r.pr_urls[:3]:
+                if not item.get("url"):
+                    continue
+                repo_name = Path(item.get("repo", "")).name or "repo"
+                links.append(
+                    f'<a href="{item["url"]}" target="_blank" rel="noreferrer">{repo_name}</a>'
+                )
+            if links:
+                pr_cell = "<br>".join(links)
         rows_detail += f"""
         <tr class="{cls}">
           <td>{r.task_id}</td>
@@ -214,6 +248,7 @@ def format_html(results: list[TaskResult]) -> str:
           <td>{r.duration:.1f}s</td>
           <td>{commit_text}</td>
           <td>{"yes" if r.pushed else "no"}</td>
+          <td>{pr_cell}</td>
           <td>{r.error[:80] if r.error else '-'}</td>
         </tr>"""
 
@@ -245,7 +280,7 @@ def format_html(results: list[TaskResult]) -> str:
 
 <h2>详细结果</h2>
 <table>
-  <tr><th>Task</th><th>Skill</th><th>实验模式</th><th>状态</th><th>耗时</th><th>提交</th><th>推送</th><th>错误</th></tr>
+  <tr><th>Task</th><th>Skill</th><th>实验模式</th><th>状态</th><th>耗时</th><th>提交</th><th>推送</th><th>PR</th><th>错误</th></tr>
   {rows_detail}
 </table>
 </body>

@@ -6,12 +6,15 @@ Git 操作统一模块 — Worktree 生命周期 + 变更检测 + 提交推送�
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import uuid
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Generator, TYPE_CHECKING
+from urllib.parse import quote, urlparse
 
 from .exceptions import GitError
 from .log import get_logger
@@ -21,6 +24,76 @@ if TYPE_CHECKING:
     from .models import TaskConfig
 
 log = get_logger("git")
+
+
+def _resolve_git_command() -> str:
+    candidates = [
+        shutil.which("git"),
+        "/usr/bin/git",
+        "/opt/homebrew/bin/git",
+        "/usr/local/bin/git",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return str(candidate)
+    return "git"
+
+
+def _normalize_remote_web_url(remote_url: str) -> str:
+    value = (remote_url or "").strip()
+    if not value:
+        return ""
+
+    host = ""
+    path = ""
+    scheme = "https"
+
+    if "://" in value:
+        parsed = urlparse(value)
+        host = parsed.hostname or ""
+        path = parsed.path or ""
+        if parsed.scheme in {"http", "https"}:
+            scheme = parsed.scheme
+    elif value.startswith("git@") and ":" in value:
+        host_part, path = value.split(":", 1)
+        host = host_part.split("@", 1)[-1]
+    else:
+        return ""
+
+    if not host:
+        return ""
+
+    normalized_path = path.rstrip("/")
+    if normalized_path.endswith(".git"):
+        normalized_path = normalized_path[:-4]
+    if not normalized_path.startswith("/"):
+        normalized_path = f"/{normalized_path}"
+    return f"{scheme}://{host}{normalized_path}"
+
+
+def build_pull_request_url(
+    remote_url: str,
+    *,
+    branch: str,
+    base_branch: str,
+) -> str:
+    web_url = _normalize_remote_web_url(remote_url)
+    if not web_url or not branch or not base_branch:
+        return ""
+
+    host = (urlparse(web_url).hostname or "").lower()
+    source = quote(branch, safe="")
+    target = quote(base_branch, safe="")
+
+    if "gitlab" in host:
+        return (
+            f"{web_url}/-/merge_requests/new"
+            f"?merge_request[source_branch]={source}"
+            f"&merge_request[target_branch]={target}"
+        )
+    if "bitbucket" in host:
+        return f"{web_url}/pull-requests/new?source={source}&dest={target}"
+    return f"{web_url}/compare/{target}...{source}?expand=1"
 
 
 def is_git_repo(path: str | Path) -> bool:
@@ -202,6 +275,7 @@ class GitClient:
 
     def __init__(self, repo: str | Path):
         self.repo = Path(repo).resolve()
+        self.git_cmd = _resolve_git_command()
         if not (self.repo / ".git").exists() and not self.repo.name.endswith(".git"):
             raise GitError(f"非 Git 仓库：{self.repo}")
 
@@ -221,14 +295,28 @@ class GitClient:
             check: 为 True 时若返回码非 0 则抛 GitError
         """
         work_dir = str(cwd or self.repo)
-        cmd = ["git"] + args
+        cmd = [self.git_cmd] + args
         log.debug("exec: %s  (cwd=%s)", " ".join(cmd), work_dir)
+        env = os.environ.copy()
+        env["PATH"] = os.pathsep.join([
+            path for path in [
+                env.get("PATH", ""),
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+                "/usr/bin",
+                "/bin",
+                "/usr/sbin",
+                "/sbin",
+            ]
+            if path
+        ])
 
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             cwd=work_dir,
+            env=env,
             encoding="utf-8",
         )
 
@@ -255,6 +343,15 @@ class GitClient:
 
     def head_hash(self, cwd: str | Path | None = None) -> str:
         r = self.run(["rev-parse", "HEAD"], cwd=cwd)
+        return r.stdout.strip()
+
+    def remote_url(
+        self,
+        remote: str = "origin",
+        *,
+        cwd: str | Path | None = None,
+    ) -> str:
+        r = self.run(["remote", "get-url", remote], cwd=cwd, check=False)
         return r.stdout.strip()
 
 
@@ -398,8 +495,12 @@ class CommitManager:
             ["config", "user.email", self.config.author_email], cwd=cwd
         )
 
-        for f in filenames:
-            self.git.run(["add", f], cwd=cwd)
+        if include_patterns or exclude_patterns:
+            for f in filenames:
+                self.git.run(["add", "--", f], cwd=cwd)
+        else:
+            # 在独立 worktree 中默认直接 stage 全部变更，避免逐文件 pathspec 解析误伤。
+            self.git.run(["add", "-A", "--", "."], cwd=cwd)
 
         self.git.run(["commit", "-m", message], cwd=cwd)
         commit_hash = self.git.head_hash(cwd=cwd)
@@ -410,3 +511,11 @@ class CommitManager:
         """推送分支到 origin。"""
         self.git.run(["push", "-u", "origin", wt.branch], cwd=wt.path)
         log.info("已推送: origin/%s", wt.branch)
+
+    def build_pr_url(self, wt: WorktreeInfo, *, remote: str = "origin") -> str:
+        remote_url = self.git.remote_url(remote, cwd=wt.path)
+        return build_pull_request_url(
+            remote_url,
+            branch=wt.branch,
+            base_branch=self.config.base_branch,
+        )

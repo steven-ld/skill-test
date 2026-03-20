@@ -1,0 +1,55 @@
+cli:
+  command: claude
+  base_args:
+    - "--print"
+    - "--dangerously-skip-permissions"
+  timeout: 1000
+
+openai:
+  enabled: true
+  api_key_env: OPENAI_API_KEY
+  base_url: https://api.minimaxi.com/v1
+  model: MiniMax-M2.7
+  api_mode: chat_completions
+  timeout: 1000
+  tool_type: shell
+  store: false
+  reasoning_effort: medium
+  max_tool_rounds: 12
+  shell_timeout_ms: 120000
+  max_output_chars: 16000
+
+git:
+  author_name: "AI Skill Tester"
+  author_email: "skill-test@local"
+  base_branch: main
+  branch_prefix: skill-test
+  auto_push: false
+  cleanup_on_finish: true
+
+retry:
+  max_retries: 1
+  retry_on_timeout: true
+  retry_on_failure: false
+  timeout_increment_on_timeout: 300
+
+max_workers: 1
+output_dir: results
+
+report_formats:
+  - text
+  - json
+  - markdown
+
+tasks:
+  - id: minimax-smoke
+    name: "MiniMax 兼容模式冒烟"
+    mode: solution
+    prompt: |
+      Reply with exactly OK.
+
+skills:
+  - name: baseline
+    tool: builtin
+    origin: builtin
+    description: "MiniMax OpenAI-compatible baseline"

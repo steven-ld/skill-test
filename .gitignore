@@ -9,14 +9,34 @@ build/
 .venv/
 venv/
 .env
+.env.*
 .pytest_cache/
 .mypy_cache/
 
 # 运行输出
 results/
+.skill-test/
 
 # 本地工具配置
+.vscode/
 .claude/settings.local.json
+.DS_Store
+
+# 本地密钥/证书/数据库
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.p12
+*.cer
+*.crt
+
+# 本地覆盖配置
+*.local.yaml
+*.local.yml
+*.local.json
+*.local.toml
 
 # 本地演示用 Git 仓库（体积大，可用任意 `-r` 路径代替）
 demo_bare.git/

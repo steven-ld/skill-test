@@ -444,7 +444,7 @@ cli:
   base_args:
     - "--print"
     - "--dangerously-skip-permissions"
-  timeout: 300             # 单个任务超时（秒）
+  timeout: 1000            # 单个任务超时（秒，coding 模式默认至少 1000 秒）
 
 git:
   base_branch: main
@@ -458,6 +458,7 @@ retry:
   max_delay: 60            # 最大延迟（秒）
   retry_on_timeout: true   # 超时时自动重试
   retry_on_failure: false  # 失败时自动重试
+  timeout_increment_on_timeout: 300  # 超时重试时额外增加的秒数（5 分钟）
 
 max_workers: 3
 output_dir: results
@@ -481,7 +482,7 @@ tasks:
       1. 使用 Python
       2. 包含类型标注和文档字符串
       3. 包含单元测试
-    timeout: 180
+    timeout: 1000
 
 skills:
   - name: baseline
@@ -574,7 +575,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("-d", "--dir", help="工作目录")
     p_run.add_argument("-r", "--repo", help="Git 仓库路径（启用隔离模式）")
     p_run.add_argument(
-        "-m", "--mode", default="auto",
+        "-m", "--mode", default="isolated",
         choices=["auto", "simple", "parallel", "isolated"],
     )
     p_run.add_argument(

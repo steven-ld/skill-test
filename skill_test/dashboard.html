@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI Skill Test Platform</title>
+<meta name="theme-color" content="#f4efe6">
+<title>SkillBench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
-
 *{box-sizing:border-box}
 :root{
   --bg:#f4efe6;
@@ -35,15 +37,19 @@ html{scroll-behavior:smooth}
 body{
   margin:0;
   font-family:var(--sans);
+  color-scheme:light;
   background:
     radial-gradient(circle at top left, rgba(15,118,110,.16), transparent 32%),
     radial-gradient(circle at top right, rgba(198,122,23,.18), transparent 28%),
     linear-gradient(180deg, #f7f1e7 0%, #f4efe6 38%, #efe9dd 100%);
   color:var(--ink);
+  min-height:100vh;
+  overflow-x:hidden;
 }
 a{color:inherit}
 button,input,select,textarea{font:inherit}
 button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+main,section,[id]{scroll-margin-top:110px}
 
 .skip-link{
   position:absolute;
@@ -58,6 +64,18 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 
 .skip-link:focus-visible{top:16px}
 
+.sr-only{
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0;
+}
+
 .shell{
   width:min(1440px,calc(100vw - 32px));
   margin:20px auto 56px;
@@ -67,14 +85,26 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   display:flex;
   align-items:center;
   justify-content:space-between;
+  flex-wrap:wrap;
   gap:16px;
   margin-bottom:18px;
+  position:sticky;
+  top:12px;
+  z-index:30;
+  padding:16px 18px;
+  border-radius:26px;
+  border:1px solid rgba(20,32,51,.08);
+  background:rgba(255,252,246,.84);
+  backdrop-filter:blur(18px);
+  box-shadow:var(--shadow);
 }
 
 .brand{
   display:flex;
   align-items:center;
   gap:14px;
+  flex:1 1 320px;
+  min-width:0;
 }
 
 .brand-copy{min-width:0}
@@ -107,8 +137,11 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .status-strip{
   display:flex;
   align-items:center;
+  justify-content:flex-end;
   gap:12px;
   flex-wrap:wrap;
+  min-width:0;
+  max-width:100%;
 }
 
 .nav-tabs{
@@ -116,6 +149,8 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   align-items:center;
   gap:8px;
   margin-left:auto;
+  flex-wrap:wrap;
+  min-width:0;
 }
 
 .nav-tab{
@@ -145,6 +180,21 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   backdrop-filter:blur(12px);
   color:var(--ink);
   font-size:13px;
+  min-width:0;
+}
+
+.pill strong{font-variant-numeric:tabular-nums}
+
+.pill-copy{
+  display:grid;
+  gap:2px;
+  min-width:0;
+}
+
+.pill-meta{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--muted);
 }
 
 .pill .dot{
@@ -155,6 +205,40 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 }
 
 .pill .dot.off{background:#94a3b8}
+.pill .dot.active{background:var(--blue)}
+.pill .dot.warn{background:var(--amber)}
+.pill .dot.success{background:#16a34a}
+.pill .dot.error{background:#dc2626}
+
+.status-pill{
+  min-width:168px;
+  max-width:100%;
+  justify-content:space-between;
+}
+
+.status-pill[data-run-tone="active"]{
+  border-color:rgba(31,94,255,.18);
+  background:rgba(31,94,255,.08);
+}
+
+.status-pill[data-run-tone="warning"]{
+  border-color:rgba(198,122,23,.2);
+  background:rgba(198,122,23,.09);
+}
+
+.status-pill[data-run-tone="success"]{
+  border-color:rgba(34,197,94,.2);
+  background:rgba(34,197,94,.08);
+}
+
+.status-pill[data-run-tone="error"]{
+  border-color:rgba(239,68,68,.2);
+  background:rgba(239,68,68,.08);
+}
+
+.status-pill .dot{
+  box-shadow:0 0 0 6px rgba(20,32,51,.04);
+}
 
 .hero{
   display:grid;
@@ -226,6 +310,86 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   margin-top:18px;
 }
 
+.workflow-strip{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:12px;
+  margin-top:18px;
+}
+
+.workflow-link{
+  display:grid;
+  gap:8px;
+  padding:14px 16px;
+  border-radius:20px;
+  border:1px solid rgba(20,32,51,.08);
+  background:rgba(255,255,255,.72);
+  text-decoration:none;
+  position:relative;
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.workflow-link:hover{
+  transform:translateY(-1px);
+  border-color:rgba(15,118,110,.26);
+  box-shadow:0 14px 22px rgba(15,118,110,.08);
+}
+
+.workflow-link[data-step-state="active"]{
+  border-color:rgba(15,118,110,.3);
+  background:linear-gradient(180deg,#fffdf8 0%, #eef9f6 100%);
+  box-shadow:0 18px 28px rgba(15,118,110,.1);
+}
+
+.workflow-link[data-step-state="done"]{
+  border-color:rgba(34,197,94,.22);
+  background:linear-gradient(180deg,#fffdf8 0%, rgba(220,252,231,.72) 100%);
+}
+
+.workflow-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.workflow-link strong{
+  font-size:14px;
+  line-height:1.35;
+}
+
+.workflow-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:54px;
+  padding:5px 8px;
+  border-radius:999px;
+  background:rgba(20,32,51,.06);
+  color:var(--muted);
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+
+.workflow-link[data-step-state="active"] .workflow-badge{
+  background:var(--teal-soft);
+  color:var(--teal);
+}
+
+.workflow-link[data-step-state="done"] .workflow-badge{
+  background:rgba(34,197,94,.14);
+  color:#15803d;
+}
+
+.workflow-link span{
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.5;
+}
+
 .metric{
   padding:18px;
   border-radius:20px;
@@ -260,8 +424,9 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 
 .layout{
   display:grid;
-  grid-template-columns:1.42fr .98fr;
-  gap:20px;
+  grid-template-columns:minmax(0,1fr) minmax(320px,420px);
+  gap:18px;
+  align-items:start;
 }
 
 .page-shell{display:none}
@@ -270,11 +435,38 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .stack{
   display:grid;
   gap:20px;
+  min-width:0;
 }
 
 .panel{
   border-radius:28px;
   padding:20px;
+  min-width:0;
+}
+
+.section-kicker{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:10px;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+
+.step-chip{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:56px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:var(--teal-soft);
+  color:var(--teal);
+  font-size:11px;
+  font-weight:700;
 }
 
 .panel-head{
@@ -331,12 +523,24 @@ input[type="text"],select,textarea{
   background:var(--surface);
   padding:12px 14px;
   color:var(--ink);
+  transition:border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+
+input[type="text"]:hover,
+select:hover,
+textarea:hover{
+  border-color:rgba(15,118,110,.22);
 }
 
 input[type="checkbox"]{
   width:16px;
   height:16px;
   accent-color:var(--teal);
+}
+
+textarea{
+  min-height:132px;
+  resize:vertical;
 }
 
 .btn{
@@ -440,6 +644,13 @@ button.mode-card{
   border-radius:18px;
   border:1px solid rgba(20,32,51,.07);
   background:var(--surface);
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.check-item:hover{
+  transform:translateY(-1px);
+  border-color:rgba(15,118,110,.2);
+  box-shadow:0 12px 24px rgba(21,32,51,.05);
 }
 
 .check-copy{
@@ -453,6 +664,7 @@ button.mode-card{
   gap:8px;
   margin-bottom:6px;
   font-size:14px;
+  flex-wrap:wrap;
 }
 
 .check-copy p{
@@ -460,6 +672,17 @@ button.mode-card{
   font-size:12px;
   color:var(--muted);
   line-height:1.6;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+.check-copy .mono{
+  display:block;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
 .tag-row{
@@ -487,6 +710,7 @@ button.mode-card{
 .tag.success{background:rgba(34,197,94,.14);color:#15803d}
 .tag.failed{background:rgba(239,68,68,.14);color:#b91c1c}
 .tag.running{background:rgba(31,94,255,.14);color:#1d4ed8}
+.tag.warning{background:rgba(245,158,11,.18);color:#b45309}
 
 .helper{
   color:var(--muted);
@@ -551,6 +775,137 @@ button.mode-card{
   overflow:hidden;
 }
 
+.studio-shell{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(280px,320px);
+  gap:18px;
+  align-items:start;
+}
+
+.setup-sidebar{
+  position:sticky;
+  top:110px;
+  align-self:start;
+}
+
+.action-card{
+  display:grid;
+  gap:16px;
+  padding:18px;
+  border-radius:24px;
+  border:1px solid rgba(15,118,110,.14);
+  background:linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(238,249,246,.92) 100%);
+}
+
+.action-card h4{
+  margin:0;
+  font-size:18px;
+}
+
+.action-card p{
+  margin:0;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.6;
+}
+
+.launch-status{
+  padding:12px 14px;
+  border-radius:18px;
+  border:1px solid rgba(20,32,51,.08);
+  background:rgba(255,255,255,.78);
+  font-size:13px;
+  line-height:1.6;
+}
+
+.launch-status[data-tone="ready"]{
+  border-color:rgba(34,197,94,.22);
+  background:rgba(220,252,231,.56);
+}
+
+.launch-status[data-tone="live"]{
+  border-color:rgba(31,94,255,.22);
+  background:rgba(31,94,255,.08);
+}
+
+.launch-status[data-tone="blocked"]{
+  border-color:rgba(198,122,23,.22);
+  background:rgba(198,122,23,.09);
+}
+
+.launch-status[data-tone="error"]{
+  border-color:rgba(239,68,68,.2);
+  background:rgba(239,68,68,.08);
+}
+
+.action-stack{
+  display:grid;
+  gap:10px;
+}
+
+.list-toolbar,
+.skills-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+
+.list-search{
+  flex:1 1 220px;
+  min-width:220px;
+}
+
+.list-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.count-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 10px;
+  border-radius:999px;
+  background:rgba(20,32,51,.05);
+  color:var(--muted);
+  font-size:12px;
+}
+
+.count-pill strong{
+  color:var(--ink);
+  font-variant-numeric:tabular-nums;
+}
+
+.checklist-scroll,
+.skill-scroll,
+.table-shell{
+  overflow:auto;
+  padding-right:4px;
+  content-visibility:auto;
+}
+
+.checklist-scroll{
+  max-height:350px;
+}
+
+.checklist-scroll.compact{
+  max-height:280px;
+}
+
+.skill-scroll{
+  max-height:760px;
+}
+
+.skill-card.is-selected{
+  border-color:rgba(15,118,110,.3);
+  background:linear-gradient(180deg, #fffdf8 0%, #eef9f6 100%);
+  box-shadow:0 16px 28px rgba(15,118,110,.1);
+}
+
 .progress-fill{
   height:100%;
   width:0;
@@ -571,6 +926,15 @@ button.mode-card{
   border:1px solid rgba(20,32,51,.07);
 }
 
+.run-item.is-running{
+  border-color:rgba(31,94,255,.24);
+  box-shadow:0 14px 22px rgba(31,94,255,.08);
+}
+
+.run-item.is-final{
+  background:linear-gradient(180deg,rgba(255,255,255,.92) 0%, rgba(248,241,232,.84) 100%);
+}
+
 .run-item-top{
   display:flex;
   align-items:flex-start;
@@ -582,6 +946,14 @@ button.mode-card{
   font-weight:600;
   font-size:14px;
   margin-bottom:8px;
+}
+
+.run-item-meta{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
 }
 
 .mono{
@@ -627,9 +999,9 @@ button.mode-card{
   border:1px solid rgba(20,32,51,.08);
   border-radius:22px;
   background:var(--surface);
-  padding:18px;
+  padding:16px;
   display:grid;
-  gap:14px;
+  gap:10px;
 }
 
 .skill-card-header{
@@ -649,13 +1021,45 @@ button.mode-card{
   color:var(--muted);
   font-size:13px;
   line-height:1.7;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+.skill-card-actions{
+  display:grid;
+  gap:8px;
+  justify-items:end;
+}
+
+.skill-toggle{
+  min-width:88px;
+  padding:9px 12px;
+}
+
+.skill-card-body{
+  display:none;
+  gap:10px;
+  padding-top:10px;
+  border-top:1px dashed rgba(20,32,51,.12);
+}
+
+.skill-card-body.is-open{
+  display:grid;
+}
+
+.skill-file{
+  display:block;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
 .refs{
   display:grid;
   gap:8px;
-  padding-top:6px;
-  border-top:1px dashed rgba(20,32,51,.12);
+  padding-top:2px;
 }
 
 .ref-item{
@@ -664,24 +1068,449 @@ button.mode-card{
   gap:10px;
 }
 
+.ref-item.is-disabled{
+  opacity:.48;
+}
+
 .ref-item span{
   font-size:12px;
   color:var(--muted);
   line-height:1.5;
 }
 
+.side-panel{
+  position:sticky;
+  top:110px;
+  min-width:0;
+}
+
+.side-tabs{
+  display:flex;
+  gap:8px;
+  padding:6px;
+  border-radius:18px;
+  background:rgba(20,32,51,.04);
+}
+
+.side-tab{
+  appearance:none;
+  border:none;
+  border-radius:14px;
+  background:transparent;
+  padding:10px 12px;
+  color:var(--muted);
+  font-weight:600;
+  cursor:pointer;
+}
+
+.side-tab.active{
+  background:var(--surface);
+  color:var(--ink);
+  box-shadow:0 10px 18px rgba(21,32,51,.08);
+}
+
+.tab-panel{
+  display:none;
+  min-width:0;
+}
+
+.tab-panel.active{
+  display:grid;
+  gap:14px;
+}
+
+.run-spotlight{
+  display:grid;
+  gap:16px;
+  padding:18px;
+  border-radius:24px;
+  border:1px solid rgba(20,32,51,.08);
+  background:linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(248,241,232,.88) 100%);
+  min-width:0;
+}
+
+.run-spotlight[data-run-tone="active"]{
+  border-color:rgba(31,94,255,.2);
+  background:linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(239,244,255,.92) 100%);
+}
+
+.run-spotlight[data-run-tone="warning"]{
+  border-color:rgba(198,122,23,.22);
+  background:linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(255,247,237,.92) 100%);
+}
+
+.run-spotlight[data-run-tone="success"]{
+  border-color:rgba(34,197,94,.22);
+  background:linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(220,252,231,.84) 100%);
+}
+
+.run-spotlight[data-run-tone="error"]{
+  border-color:rgba(239,68,68,.22);
+  background:linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(254,226,226,.84) 100%);
+}
+
+.spotlight-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+
+.spotlight-copy h4{
+  margin:0;
+  font-size:22px;
+  text-wrap:balance;
+}
+
+.spotlight-copy p{
+  margin:8px 0 0;
+  color:var(--muted);
+  line-height:1.65;
+}
+
+.spotlight-stage{
+  min-width:140px;
+  max-width:100%;
+  display:grid;
+  gap:6px;
+  padding:14px 16px;
+  border-radius:20px;
+  background:rgba(255,255,255,.74);
+  border:1px solid rgba(20,32,51,.08);
+}
+
+.spotlight-label{
+  font-size:11px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+
+.spotlight-stage strong{
+  font-size:22px;
+}
+
+.spotlight-meta{
+  color:var(--muted);
+}
+
+.phase-rail{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+
+.phase-node{
+  display:grid;
+  gap:6px;
+  padding:12px 14px;
+  border-radius:18px;
+  border:1px solid rgba(20,32,51,.08);
+  background:rgba(255,255,255,.68);
+  transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.phase-node.is-active{
+  border-color:rgba(15,118,110,.28);
+  box-shadow:0 14px 22px rgba(15,118,110,.08);
+  transform:translateY(-1px);
+}
+
+.phase-node.is-done{
+  border-color:rgba(34,197,94,.2);
+  background:rgba(220,252,231,.56);
+}
+
+.phase-node strong{
+  font-size:13px;
+}
+
+.phase-node span{
+  font-size:11px;
+  line-height:1.5;
+  color:var(--muted);
+}
+
+.run-board{
+  display:grid;
+  grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);
+  gap:14px;
+  min-width:0;
+}
+
+.queue-summary{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+
+.queue-card{
+  padding:12px 14px;
+  border-radius:18px;
+  background:rgba(255,255,255,.74);
+  border:1px solid rgba(20,32,51,.08);
+}
+
+.queue-card span{
+  display:block;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.queue-card strong{
+  display:block;
+  margin-top:8px;
+  font-size:22px;
+  font-variant-numeric:tabular-nums;
+}
+
+.event-feed{
+  display:grid;
+  gap:12px;
+  position:relative;
+  padding:4px 0 4px 20px;
+}
+
+.event-feed::before{
+  content:"";
+  position:absolute;
+  left:8px;
+  top:10px;
+  bottom:10px;
+  width:2px;
+  border-radius:999px;
+  background:linear-gradient(180deg, rgba(15,118,110,.18), rgba(31,94,255,.08));
+}
+
+.event-feed.is-empty{
+  padding-left:0;
+}
+
+.event-feed.is-empty::before{
+  display:none;
+}
+
+.event-item{
+  position:relative;
+  padding:16px 16px 16px 18px;
+  border-radius:20px;
+  border:1px solid rgba(20,32,51,.07);
+  background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,248,234,.88));
+  box-shadow:0 16px 30px rgba(20,32,51,.05);
+}
+
+.event-item[data-tone="running"]{
+  border-color:rgba(31,94,255,.2);
+  background:linear-gradient(180deg, rgba(248,250,255,.98), rgba(239,246,255,.88));
+}
+
+.event-item[data-tone="success"]{
+  border-color:rgba(34,197,94,.2);
+  background:linear-gradient(180deg, rgba(247,254,231,.98), rgba(240,253,244,.88));
+}
+
+.event-item[data-tone="error"]{
+  border-color:rgba(239,68,68,.2);
+  background:linear-gradient(180deg, rgba(255,250,250,.98), rgba(254,242,242,.88));
+}
+
+.event-dot{
+  position:absolute;
+  left:-18px;
+  top:18px;
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  border:3px solid rgba(255,255,255,.96);
+  background:rgba(20,32,51,.22);
+  box-shadow:0 0 0 6px rgba(255,248,234,.94);
+}
+
+.event-item[data-tone="running"] .event-dot{
+  background:var(--blue);
+  box-shadow:0 0 0 6px rgba(239,246,255,.98);
+  animation:pulse-ring 1.8s ease infinite;
+}
+
+.event-item[data-tone="success"] .event-dot{
+  background:#16a34a;
+  box-shadow:0 0 0 6px rgba(240,253,244,.98);
+}
+
+.event-item[data-tone="error"] .event-dot{
+  background:#dc2626;
+  box-shadow:0 0 0 6px rgba(254,242,242,.98);
+}
+
+.event-copy{
+  min-width:0;
+  display:grid;
+  gap:10px;
+}
+
+.layout > *,
+.studio-shell > *,
+.run-board > *,
+.spotlight-top > *{
+  min-width:0;
+}
+
+.event-head{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  flex-wrap:wrap;
+}
+
+.event-title{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  min-width:0;
+}
+
+.event-copy strong{
+  display:block;
+  font-size:14px;
+  line-height:1.45;
+}
+
+.event-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+  line-height:1;
+  letter-spacing:.02em;
+  background:rgba(20,32,51,.08);
+  color:var(--muted);
+}
+
+.event-item[data-tone="running"] .event-badge{
+  background:rgba(31,94,255,.12);
+  color:var(--blue);
+}
+
+.event-item[data-tone="success"] .event-badge{
+  background:rgba(34,197,94,.12);
+  color:#15803d;
+}
+
+.event-item[data-tone="error"] .event-badge{
+  background:rgba(239,68,68,.12);
+  color:#b91c1c;
+}
+
+.event-copy p{
+  margin:0;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.6;
+  overflow-wrap:anywhere;
+}
+
+.event-time{
+  display:inline-flex;
+  align-items:center;
+  padding:4px 9px;
+  border-radius:999px;
+  border:1px solid rgba(20,32,51,.08);
+  background:rgba(255,255,255,.76);
+  color:var(--muted);
+  white-space:nowrap;
+}
+
+.status-kpis,
+.results-overview{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+
+.kpi-card{
+  display:grid;
+  gap:8px;
+  padding:14px;
+  border-radius:18px;
+  background:var(--surface);
+  border:1px solid rgba(20,32,51,.07);
+}
+
+.kpi-card span{
+  font-size:12px;
+  color:var(--muted);
+}
+
+.kpi-card strong{
+  font-size:24px;
+  font-variant-numeric:tabular-nums;
+}
+
+.table-shell{
+  border-radius:20px;
+  border:1px solid rgba(20,32,51,.06);
+  background:var(--surface);
+}
+
+.toast-region{
+  position:fixed;
+  right:20px;
+  bottom:20px;
+  z-index:40;
+  display:grid;
+  gap:10px;
+  width:min(360px, calc(100vw - 32px));
+}
+
+.toast{
+  padding:14px 16px;
+  border-radius:18px;
+  border:1px solid rgba(20,32,51,.08);
+  background:rgba(255,253,248,.94);
+  box-shadow:var(--shadow);
+  line-height:1.55;
+  font-size:13px;
+}
+
+.toast.success{
+  border-color:rgba(34,197,94,.22);
+}
+
+.toast.error{
+  border-color:rgba(239,68,68,.2);
+}
+
+@keyframes pulse-ring{
+  0%{box-shadow:0 0 0 0 rgba(31,94,255,.16)}
+  70%{box-shadow:0 0 0 10px rgba(31,94,255,0)}
+  100%{box-shadow:0 0 0 0 rgba(31,94,255,0)}
+}
+
 @media (max-width: 1180px){
-  .hero,.layout{grid-template-columns:1fr}
+  .hero,.layout,.studio-shell,.run-board{grid-template-columns:1fr}
+  .workflow-strip,.status-kpis,.results-overview{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .setup-sidebar,.side-panel{position:static}
+  .skill-scroll{max-height:none}
+  .phase-rail,.queue-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
 @media (max-width: 860px){
   .shell{width:min(100vw - 20px,1440px)}
   .hero-main{padding:24px}
   .hero-main h2{font-size:30px}
-  .hero-grid,.field-grid,.section-grid.two,.mode-grid,.builder-grid,.inline-grid{grid-template-columns:1fr}
-  .topbar,.panel-head,.run-item-top,.status-strip{align-items:flex-start}
-  .topbar,.panel-head{flex-direction:column}
+  .workflow-strip,.hero-grid,.field-grid,.section-grid.two,.mode-grid,.builder-grid,.inline-grid,.status-kpis,.results-overview,.phase-rail,.queue-summary{grid-template-columns:1fr}
+  .topbar,.panel-head,.run-item-top,.status-strip,.list-toolbar,.skills-toolbar{align-items:flex-start}
+  .topbar,.panel-head,.spotlight-top{flex-direction:column}
   .nav-tabs{margin-left:0}
+  .side-tabs{overflow:auto}
+  .event-feed{padding-left:18px}
+  .event-item{padding:15px 14px 15px 16px}
+  .event-head{flex-direction:column; align-items:flex-start}
+  .event-dot{left:-16px}
 }
 
 @media (prefers-reduced-motion: reduce){
@@ -702,22 +1531,26 @@ button.mode-card{
     <div class="brand">
       <div class="brand-mark">ST</div>
       <div class="brand-copy">
-        <h1>AI Skill Test Platform</h1>
-        <p>Skill A/B 实验、Git 交付追踪、跨工具 Skill 目录与引用管理</p>
+        <h1>SkillBench</h1>
+        <p>面向真实交付的 Skill 实验与验证平台</p>
       </div>
     </div>
     <div class="nav-tabs">
-      <button class="nav-tab active" type="button" data-page-target="workbench" onclick="switchPage('workbench')">Workbench</button>
-      <button class="nav-tab" type="button" data-page-target="configs" onclick="switchPage('configs')">Config Center</button>
+      <button class="nav-tab active" type="button" data-page-target="workbench" onclick="switchPage('workbench')">实验工作台</button>
+      <button class="nav-tab" type="button" data-page-target="configs" onclick="switchPage('configs')">配置中心</button>
     </div>
     <div class="status-strip">
       <div class="pill">
         <span class="dot" id="ws-dot"></span>
         <span id="ws-status">连接中</span>
       </div>
-      <div class="pill">
-        <span>运行状态</span>
-        <strong id="run-state">待命</strong>
+      <div class="pill status-pill" id="run-state-pill" data-run-tone="idle">
+        <span class="dot off" id="run-state-dot"></span>
+        <div class="pill-copy">
+          <span>运行状态</span>
+          <strong id="run-state">待命</strong>
+        </div>
+        <span class="pill-meta" id="run-state-progress">0 / 0</span>
       </div>
       <div class="pill">
         <span>版本</span>
@@ -729,33 +1562,70 @@ button.mode-card{
   <section class="page-shell active" id="page-workbench">
   <section class="hero">
     <div class="hero-main">
-      <div class="hero-kicker">A/B Skill Workbench</div>
-      <h2>同一模型，直接比较基线提示词与 Skill 增强的真实交付。</h2>
+      <div class="hero-kicker">Skill Evaluation for Real Delivery</div>
+      <h2>用交付，验证 Skill 的价值</h2>
       <p>
-        支持 <strong>技术方案</strong> 与 <strong>Coding</strong> 两种实验模式。
-        可以直接输入微服务工作区根目录；平台会优先尝试自动匹配目标子仓库，Git 提交与推送记录作为交付主凭证。
+        在统一模型与任务条件下，直接比较基线提示词与 Skill 增强后的最终交付结果。
+        支持 <strong>技术方案</strong> 与 <strong>Coding</strong> 两种实验模式，交付以 Git 提交与推送记录为核心凭证。
       </p>
       <div class="hero-grid">
         <div class="metric">
-          <div class="label">总历史运行</div>
+          <div class="label">历史实验数</div>
           <div class="value" id="metric-total">0</div>
-          <div class="hint" id="metric-total-hint">累计记录</div>
+          <div class="hint" id="metric-total-hint">累计沉淀</div>
         </div>
         <div class="metric">
-          <div class="label">历史成功率</div>
+          <div class="label">历史完成率</div>
           <div class="value" id="metric-rate">-</div>
-          <div class="hint" id="metric-rate-hint">跨 Skill</div>
+          <div class="hint" id="metric-rate-hint">跨实验组</div>
         </div>
         <div class="metric">
-          <div class="label">平均耗时</div>
+          <div class="label">平均交付耗时</div>
           <div class="value" id="metric-time">-</div>
           <div class="hint" id="metric-time-hint">历史均值</div>
         </div>
         <div class="metric">
-          <div class="label">最近提交率</div>
+          <div class="label">当前交付率</div>
           <div class="value" id="metric-delivery">-</div>
-          <div class="hint" id="metric-delivery-hint">当前运行</div>
+          <div class="hint" id="metric-delivery-hint">基于当前运行</div>
         </div>
+      </div>
+      <div class="workflow-strip" aria-label="实验流程导航">
+        <a class="workflow-link" href="#studio" data-step="setup" data-step-state="active">
+          <div class="workflow-top">
+            <strong>1. 加载配置</strong>
+            <span class="workflow-badge" id="workflow-setup-badge">进行中</span>
+          </div>
+          <span>先确定配置、工作区与执行边界，再进入统一实验流程。</span>
+        </a>
+        <a class="workflow-link" href="#selection-panel" data-step="scope" data-step-state="idle">
+          <div class="workflow-top">
+            <strong>2. 选择任务</strong>
+            <span class="workflow-badge" id="workflow-scope-badge">待处理</span>
+          </div>
+          <span>保留本次需要验证的任务与配置 Skill，避免无关变量干扰。</span>
+        </a>
+        <a class="workflow-link" href="#catalog-panel" data-step="catalog" data-step-state="idle">
+          <div class="workflow-top">
+            <strong>3. 选择项目 Skill</strong>
+            <span class="workflow-badge" id="workflow-catalog-badge">待处理</span>
+          </div>
+          <span>扫描仓库内可用 Skill，并按需纳入 reference 文件。</span>
+        </a>
+        <a class="workflow-link" href="#launch-card" data-step="run" data-step-state="idle">
+          <div class="workflow-top">
+            <strong>4. 启动实验</strong>
+            <span class="workflow-badge" id="workflow-run-badge">待处理</span>
+          </div>
+          <span>从运行中心统一查看进度、历史表现与配置概览。</span>
+        </a>
+        <a class="workflow-link" href="#result-panel" data-step="results" data-step-state="idle">
+          <div class="workflow-top">
+            <strong>5. 查看结果</strong>
+            <span class="workflow-badge" id="workflow-results-badge">待处理</span>
+          </div>
+          <span>交付完成后，直接查看结果、对比与关键结论。</span>
+        </a>
       </div>
     </div>
   </section>
@@ -765,107 +1635,145 @@ button.mode-card{
       <section class="panel" id="studio">
         <div class="panel-head">
           <div>
+            <div class="section-kicker"><span class="step-chip">Step 1</span>Launch Setup</div>
             <h3>实验设置</h3>
-            <p>选择模式、目标仓库与交付策略。</p>
-          </div>
-          <div class="panel-actions">
-            <button class="btn btn-secondary" type="button" onclick="loadConfig()">加载配置</button>
-            <button class="btn btn-primary" type="button" id="btn-start" onclick="startRun()">启动实验</button>
+            <p>从配置、工作区与交付策略开始，建立一次可比较、可复核的实验。</p>
           </div>
         </div>
 
-        <div class="section-grid">
-          <div class="field-grid">
+        <div class="studio-shell">
+          <div class="section-grid">
+            <div class="field-grid">
+              <div class="field">
+                <label for="cfg-select">配置文件</label>
+                <select id="cfg-select" name="config_select"></select>
+              </div>
+              <div class="field">
+                <label for="cfg-path">配置文件路径</label>
+                <input type="text" id="cfg-path" name="config_path" autocomplete="off" placeholder="/path/to/skill_test.yaml…">
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="run-repo">工作区根目录</label>
+                <input type="text" id="run-repo" name="repo_path" autocomplete="off" placeholder="/path/to/workspace-or-repo…">
+              </div>
+              <div class="field">
+                <label for="run-dir">执行目录</label>
+                <input type="text" id="run-dir" name="work_dir" autocomplete="off" placeholder="可选执行目录…">
+              </div>
+            </div>
+            <div class="helper">支持直接输入微服务工作区根目录；平台会优先自动匹配目标子仓库，也可以只保留本次实验涉及的模块。</div>
             <div class="field">
-              <label>配置文件</label>
-              <select id="cfg-select" name="config_select"></select>
+              <div class="list-toolbar">
+                <div>
+                  <label for="repo-filter">目标模块</label>
+                  <div class="helper">先扫描仓库，再按模块名或路径快速定位目标子仓库。</div>
+                </div>
+                <div class="list-meta">
+                  <span class="count-pill">模块 <strong id="repo-count">0</strong></span>
+                  <span class="count-pill">已选 <strong id="repo-selected-count">0</strong></span>
+                </div>
+              </div>
+              <div class="list-toolbar">
+                <input class="list-search" type="text" id="repo-filter" name="repo_filter" autocomplete="off" placeholder="按模块名或路径筛选…">
+                <button class="btn btn-secondary" type="button" onclick="discoverRepos()">扫描模块</button>
+              </div>
+              <div class="checklist checklist-scroll" id="repo-list">
+                <div class="empty">扫描完成后，可在这里选择本次实验涉及的目标仓库。</div>
+              </div>
             </div>
-            <div class="field">
-              <label>配置文件路径</label>
-              <input type="text" id="cfg-path" name="config_path" autocomplete="off" placeholder="/path/to/skill_test.yaml…">
+
+            <div>
+              <div class="section-kicker"><span class="step-chip">Step 2</span>Experiment Mode</div>
+              <div class="mode-grid">
+                <button class="mode-card active" data-mode="coding" type="button" onclick="selectExperimentMode('coding')">
+                  <div class="tag-row"><span class="tag mode">Coding</span></div>
+                  <h4>Coding 模式</h4>
+                  <p>面向真实代码实现、修改与提交，直接检验最终交付能力。</p>
+                </button>
+                <button class="mode-card" data-mode="solution" type="button" onclick="selectExperimentMode('solution')">
+                  <div class="tag-row"><span class="tag mode">Technical Plan</span></div>
+                  <h4>技术方案模式</h4>
+                  <p>面向架构设计、改造方案与实施路径，验证方案交付的完整度与可执行性。</p>
+                </button>
+              </div>
             </div>
-          </div>
-          <div class="field-grid">
-            <div class="field">
-              <label>工作区路径</label>
-              <input type="text" id="run-repo" name="repo_path" autocomplete="off" placeholder="/path/to/workspace-or-repo…">
+
+            <div class="section-grid two">
+              <div class="field">
+                <label for="run-mode">执行模式</label>
+                <select id="run-mode" name="run_mode" autocomplete="off">
+                  <option value="isolated" selected>隔离 (isolated)</option>
+                  <option value="auto">自动 (auto)</option>
+                  <option value="simple">串行 (simple)</option>
+                  <option value="parallel">并行 (parallel)</option>
+                </select>
+              </div>
+              <div class="note">涉及多个仓库时建议保持 `isolated`，这样每个实验组都会获得独立 worktree 与可提交的交付记录，结果也更便于复核。</div>
             </div>
-            <div class="field">
-              <label>工作目录</label>
-              <input type="text" id="run-dir" name="work_dir" autocomplete="off" placeholder="可选工作目录…">
-            </div>
-          </div>
-          <div class="helper">支持直接输入工作区根目录；可以自动匹配子仓库，也可以手工勾选多个模块。</div>
-          <div class="field">
-            <label>涉及模块</label>
-            <div class="panel-actions">
-              <button class="btn btn-secondary" type="button" onclick="discoverRepos()">扫描模块</button>
-            </div>
-            <div class="checklist" id="repo-list">
-              <div class="empty">扫描后可勾选多个目标仓库。</div>
+
+            <div class="tag-row">
+              <label class="pill"><input type="checkbox" id="include-baseline" checked> 基线组</label>
+              <label class="pill"><input type="checkbox" id="enable-commit" checked> 自动提交</label>
+              <label class="pill"><input type="checkbox" id="enable-push" checked> 自动推送</label>
             </div>
           </div>
 
-          <div class="mode-grid">
-            <button class="mode-card active" data-mode="coding" type="button" onclick="selectExperimentMode('coding')">
-              <div class="tag-row"><span class="tag mode">Coding</span></div>
-              <h4>Coding 模式</h4>
-              <p>直接改代码，并记录交付说明与 Git 结果。</p>
-            </button>
-            <button class="mode-card" data-mode="solution" type="button" onclick="selectExperimentMode('solution')">
-              <div class="tag-row"><span class="tag mode">Technical Plan</span></div>
-              <h4>技术方案模式</h4>
-              <p>产出详细方案文档，不直接改业务代码。</p>
-            </button>
-          </div>
-
-          <div class="section-grid two">
-            <div class="field">
-              <label>执行模式</label>
-              <select id="run-mode" name="run_mode" autocomplete="off">
-                <option value="auto">自动 (auto)</option>
-                <option value="simple">串行 (simple)</option>
-                <option value="parallel">并行 (parallel)</option>
-                <option value="isolated">隔离 (isolated)</option>
-              </select>
+          <aside class="setup-sidebar">
+            <div class="action-card" id="launch-card">
+              <div>
+                <div class="section-kicker"><span class="step-chip">Step 4</span>Ready To Run</div>
+                <h4>从这里发起实验</h4>
+                <p>左侧完成配置与选择后，即可直接启动实验，并持续观察交付进展。</p>
+              </div>
+              <div class="action-stack">
+                <button class="btn btn-secondary" type="button" onclick="loadConfig()">加载配置</button>
+                <button class="btn btn-primary" type="button" id="btn-start" onclick="startRun()">启动实验</button>
+              </div>
+              <div class="selection-summary" id="selection-summary">
+                <div class="row"><span>实验模式</span><strong id="summary-mode">Coding 模式</strong></div>
+                <div class="row"><span>任务数量</span><strong id="summary-tasks">0</strong></div>
+                <div class="row"><span>配置 Skill</span><strong id="summary-config-skills">0</strong></div>
+                <div class="row"><span>扫描 Skill</span><strong id="summary-discovered-skills">0</strong></div>
+                <div class="row"><span>引用文件</span><strong id="summary-refs">0</strong></div>
+              </div>
+              <div class="launch-status" id="launch-status" data-tone="blocked" aria-live="polite">准备中：先加载配置，再确认本次实验要验证的任务与 Skill。</div>
+              <div class="helper">建议顺序：加载配置 → 扫描模块 → 选择任务与 Skill → 启动实验。</div>
             </div>
-            <div class="note">涉及多个仓库时，建议保持 `isolated`，这样每个实验组都会获得独立 worktree 与可提交的交付记录。</div>
-          </div>
-
-          <div class="tag-row">
-            <label class="pill"><input type="checkbox" id="include-baseline" checked> 基线组</label>
-            <label class="pill"><input type="checkbox" id="enable-commit" checked> 自动提交</label>
-            <label class="pill"><input type="checkbox" id="enable-push" checked> 自动推送</label>
-          </div>
-
-          <div class="selection-summary" id="selection-summary">
-            <div class="row"><span>实验模式</span><strong id="summary-mode">Coding 模式</strong></div>
-            <div class="row"><span>任务数量</span><strong id="summary-tasks">0</strong></div>
-            <div class="row"><span>配置 Skill</span><strong id="summary-config-skills">0</strong></div>
-            <div class="row"><span>扫描 Skill</span><strong id="summary-discovered-skills">0</strong></div>
-            <div class="row"><span>引用文件</span><strong id="summary-refs">0</strong></div>
-          </div>
+          </aside>
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" id="selection-panel">
         <div class="panel-head">
           <div>
+            <div class="section-kicker"><span class="step-chip">Step 2</span>Task Scope</div>
             <h3>任务与配置 Skill</h3>
-            <p>勾选参与实验的任务与配置 Skill。</p>
+            <p>只保留本次需要验证的任务与配置 Skill，让比较回到真正关键的变量上。</p>
+          </div>
+          <div class="list-meta">
+            <span class="count-pill">任务 <strong id="task-count">0</strong></span>
+            <span class="count-pill">配置 Skill <strong id="config-skill-count">0</strong></span>
           </div>
         </div>
         <div class="section-grid two">
           <div>
-            <div class="helper" style="margin-bottom:10px">任务清单</div>
-            <div class="checklist" id="task-list">
-              <div class="empty">先加载配置文件，再选择实验任务。</div>
+            <div class="list-toolbar">
+              <div>
+                <div class="helper">任务清单</div>
+              </div>
+              <label class="sr-only" for="task-filter">筛选任务</label>
+              <input class="list-search" type="text" id="task-filter" name="task_filter" autocomplete="off" placeholder="按任务名、模式或模块筛选…">
+            </div>
+            <div class="checklist checklist-scroll compact" id="task-list">
+              <div class="empty">加载配置后，在这里选择本次实验需要执行的任务。</div>
             </div>
           </div>
           <div>
-            <div class="helper" style="margin-bottom:10px">配置中的 Skill</div>
-            <div class="checklist" id="config-skill-list">
-              <div class="empty">暂无配置 Skill。</div>
+            <div class="helper" style="margin-bottom:10px">配置中预置的 Skill</div>
+            <div class="checklist checklist-scroll compact" id="config-skill-list">
+              <div class="empty">当前配置未预置额外 Skill。</div>
             </div>
           </div>
         </div>
@@ -874,76 +1782,134 @@ button.mode-card{
       <section class="panel" id="result-panel" style="display:none">
         <div class="panel-head">
           <div>
+            <div class="section-kicker"><span class="step-chip">Step 5</span>Result Review</div>
             <h3>结果与对比</h3>
-            <p>展示实验结果、Git 交付与 Skill 对比。</p>
+            <p>从最终交付、代码变更与 Git 凭证三个层面，集中呈现实验差异。</p>
           </div>
         </div>
         <div class="section-grid">
-          <div id="compare-body" class="empty">运行完成后显示对比摘要。</div>
-          <div id="result-body" class="empty">运行完成后显示详细结果。</div>
+          <div class="results-overview" id="results-overview">
+            <div class="empty" style="grid-column:1 / -1">运行完成后，这里会展示关键交付指标。</div>
+          </div>
+          <div id="compare-body" class="empty">运行完成后，这里会生成对比摘要。</div>
+          <div id="result-body" class="empty">运行完成后，这里会展示详细结果。</div>
         </div>
       </section>
     </div>
 
-    <div class="stack">
-      <section class="panel">
+    <aside class="stack">
+      <section class="panel" id="catalog-panel">
         <div class="panel-head">
           <div>
+            <div class="section-kicker"><span class="step-chip">Step 3</span>Skill Catalog</div>
             <h3>项目 Skill 目录</h3>
-            <p>扫描并选择实验组要引用的 Skill 与 reference。</p>
-          </div>
-          <div class="panel-actions">
-            <button class="btn btn-secondary" type="button" onclick="discoverSkills()">扫描 Skill</button>
+            <p>扫描工作区中的可用 Skill，并为实验组选择需要引用的 reference 文件。</p>
           </div>
         </div>
 
         <div class="field">
-          <label>扫描路径</label>
+          <label for="disc-path">扫描路径</label>
           <input type="text" id="disc-path" name="discover_path" autocomplete="off" placeholder="/path/to/repo/.claude/skills…">
         </div>
-        <div class="helper" style="margin:12px 0 16px">会标注工具来源，且只有勾选后的 reference 文件才会进入实验。</div>
-        <div class="section-grid" id="discover-results">
-          <div class="empty">扫描后在这里选择实验组 Skill 与引用文件。</div>
+        <div class="skills-toolbar">
+          <div class="list-meta">
+            <span class="count-pill">已发现 <strong id="discover-count">0</strong></span>
+            <span class="count-pill">已选 <strong id="discover-selected-count">0</strong></span>
+            <span class="count-pill">Refs <strong id="discover-ref-count">0</strong></span>
+          </div>
+          <button class="btn btn-secondary" type="button" onclick="discoverSkills()">扫描 Skill</button>
+        </div>
+        <label class="sr-only" for="skill-filter">筛选 Skill</label>
+        <input class="list-search" type="text" id="skill-filter" name="skill_filter" autocomplete="off" placeholder="按 Skill 名称、描述或来源筛选…">
+        <div class="helper" style="margin:12px 0 16px">只有勾选的 Skill 与 reference 文件会进入实验上下文；未启用的 Skill 将保持只读。</div>
+        <div class="section-grid skill-scroll" id="discover-results">
+          <div class="empty">扫描完成后，在这里选择实验组 Skill 与引用文件。</div>
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-head">
+      <section class="panel side-panel">
+        <div class="panel-head" id="monitor-panel">
           <div>
-            <h3>实时运行与 Git 交付</h3>
-            <p>实时追踪状态、提交 hash 与推送结果。</p>
+            <div class="section-kicker"><span class="step-chip">Ops</span>Run Center</div>
+            <h3>运行中心</h3>
+            <p>把实时进度、历史表现与当前配置集中呈现，减少来回切换。</p>
           </div>
         </div>
-
-        <div class="section-grid">
-          <div class="progress-shell"><div class="progress-fill" id="live-progress"></div></div>
-          <div class="helper" id="live-text" aria-live="polite">尚未开始运行。</div>
-          <div class="run-log" id="live-tasks">
-            <div class="empty">运行中的任务会实时显示在这里。</div>
-          </div>
+        <div class="side-tabs" role="tablist" aria-label="运行中心视图切换">
+          <button class="side-tab active" id="side-tab-run" role="tab" type="button" data-side-tab="run" aria-selected="true" aria-controls="tab-run" onclick="switchSideTab('run')">运行</button>
+          <button class="side-tab" id="side-tab-history" role="tab" type="button" data-side-tab="history" aria-selected="false" aria-controls="tab-history" onclick="switchSideTab('history')">历史</button>
+          <button class="side-tab" id="side-tab-settings" role="tab" type="button" data-side-tab="settings" aria-selected="false" aria-controls="tab-settings" onclick="switchSideTab('settings')">配置</button>
+        </div>
+        <div class="section-grid" style="margin-top:14px">
+          <section class="tab-panel active" id="tab-run" role="tabpanel" tabindex="0" aria-labelledby="side-tab-run">
+            <div class="run-spotlight" id="run-spotlight" data-run-tone="idle">
+              <div class="spotlight-top">
+                <div class="spotlight-copy">
+                  <div class="section-kicker"><span class="step-chip">Live</span>Run Spotlight</div>
+                  <h4 id="run-headline">等待发起实验</h4>
+                  <p id="live-text" aria-live="polite">尚未开始运行。状态变化、阶段切换和最近动作会在这里同步显示。</p>
+                </div>
+                <div class="spotlight-stage">
+                  <span class="spotlight-label">当前阶段</span>
+                  <strong id="run-stage-label">待命</strong>
+                  <span class="spotlight-meta mono" id="run-stage-meta">0 / 0</span>
+                </div>
+              </div>
+              <div class="progress-shell"><div class="progress-fill" id="live-progress"></div></div>
+              <div class="phase-rail" aria-label="实验运行阶段">
+                <div class="phase-node" id="phase-queued">
+                  <strong>已提交</strong>
+                  <span>请求已经进入运行队列。</span>
+                </div>
+                <div class="phase-node" id="phase-preparing">
+                  <strong>装配中</strong>
+                  <span>任务和 Skill 正在配对、注册。</span>
+                </div>
+                <div class="phase-node" id="phase-running">
+                  <strong>执行中</strong>
+                  <span>工作单元持续推进并回传结果。</span>
+                </div>
+                <div class="phase-node" id="phase-completed">
+                  <strong>已完成</strong>
+                  <span>结果、对比和交付摘要已经可看。</span>
+                </div>
+              </div>
+              <div class="queue-summary">
+                <div class="queue-card"><span>等待中</span><strong id="run-kpi-pending">0</strong></div>
+                <div class="queue-card"><span>执行中</span><strong id="run-kpi-running">0</strong></div>
+                <div class="queue-card"><span>最近更新</span><strong id="run-last-event-time">--:--</strong></div>
+              </div>
+            </div>
+            <div class="status-kpis">
+              <div class="kpi-card"><span>总单元</span><strong id="run-kpi-total">0</strong></div>
+              <div class="kpi-card"><span>已完成</span><strong id="run-kpi-complete">0</strong></div>
+              <div class="kpi-card"><span>成功</span><strong id="run-kpi-success">0</strong></div>
+              <div class="kpi-card"><span>失败</span><strong id="run-kpi-failed">0</strong></div>
+            </div>
+            <div class="run-board">
+              <div>
+                <div class="helper" style="margin-bottom:10px">执行单元按状态排序，正在运行的任务会自动置顶。</div>
+                <div class="run-log checklist-scroll compact" id="live-tasks">
+                  <div class="empty">运行中的任务会实时显示在这里。</div>
+                </div>
+              </div>
+              <div>
+                  <div class="helper" style="margin-bottom:10px">流程时间线会记录状态切换、关键动作与最终结果。</div>
+                <div class="event-feed checklist-scroll compact" id="live-events" role="log" aria-live="polite" aria-relevant="additions text">
+                  <div class="empty">实验开始后，流程变化会连续记录在这里。</div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="tab-panel" id="tab-history" role="tabpanel" tabindex="0" aria-labelledby="side-tab-history" hidden>
+            <div id="history-stats" class="empty">加载中…</div>
+          </section>
+          <section class="tab-panel" id="tab-settings" role="tabpanel" tabindex="0" aria-labelledby="side-tab-settings" hidden>
+            <div id="settings-body" class="empty">加载配置后，这里会展示详细配置。</div>
+          </section>
         </div>
       </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <h3>历史表现</h3>
-            <p>按 Skill 聚合历史表现。</p>
-          </div>
-        </div>
-        <div id="history-stats" class="empty">加载中…</div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <h3>当前配置概览</h3>
-            <p>确认当前加载的 CLI、任务与 Skill 元数据。</p>
-          </div>
-        </div>
-        <div id="settings-body" class="empty">加载配置后会展示详情。</div>
-      </section>
-    </div>
+    </aside>
   </main>
   </section>
 
@@ -952,7 +1918,7 @@ button.mode-card{
       <div class="panel-head">
         <div>
           <h3>配置中心</h3>
-          <p>编辑 YAML 配置文件，并让主页面直接引用。</p>
+          <p>维护 YAML 配置文件，并直接回到实验工作台使用。</p>
         </div>
         <div class="builder-actions">
           <button class="btn btn-secondary" type="button" onclick="loadConfigFiles()">刷新文件</button>
@@ -966,38 +1932,38 @@ button.mode-card{
         <div class="section-grid">
           <div class="field-grid">
             <div class="field">
-              <label>配置文件</label>
+              <label for="builder-config-select">配置文件</label>
               <select id="builder-config-select" name="builder_config_select"></select>
             </div>
             <div class="field">
-              <label>保存路径</label>
+              <label for="builder-config-path">保存路径</label>
               <input type="text" id="builder-config-path" name="builder_config_path" autocomplete="off" placeholder="/path/to/config.yaml…">
             </div>
           </div>
 
           <div class="inline-grid">
             <div class="field">
-              <label>CLI 命令</label>
+              <label for="builder-cli-command">CLI 命令</label>
               <input type="text" id="builder-cli-command" name="builder_cli_command" autocomplete="off" placeholder="claude…">
             </div>
             <div class="field">
-              <label>CLI 超时</label>
+              <label for="builder-cli-timeout">CLI 超时</label>
               <input type="text" id="builder-cli-timeout" name="builder_cli_timeout" autocomplete="off" placeholder="300…">
             </div>
             <div class="field">
-              <label>输出目录</label>
+              <label for="builder-output-dir">输出目录</label>
               <input type="text" id="builder-output-dir" name="builder_output_dir" autocomplete="off" placeholder="results…">
             </div>
             <div class="field">
-              <label>最大并发</label>
+              <label for="builder-max-workers">最大并发</label>
               <input type="text" id="builder-max-workers" name="builder_max_workers" autocomplete="off" placeholder="3…">
             </div>
             <div class="field">
-              <label>基准分支</label>
+              <label for="builder-base-branch">基准分支</label>
               <input type="text" id="builder-base-branch" name="builder_base_branch" autocomplete="off" placeholder="main…">
             </div>
             <div class="field">
-              <label>分支前缀</label>
+              <label for="builder-branch-prefix">分支前缀</label>
               <input type="text" id="builder-branch-prefix" name="builder_branch_prefix" autocomplete="off" placeholder="skill-test…">
             </div>
           </div>
@@ -1014,7 +1980,7 @@ button.mode-card{
             <div class="panel-head">
               <div>
                 <h3>任务</h3>
-                <p>支持 mode 与 repo_targets。</p>
+                <p>定义实验任务、模式与目标仓库范围。</p>
               </div>
               <button class="btn btn-secondary" type="button" onclick="addBuilderTask()">新增任务</button>
             </div>
@@ -1025,7 +1991,7 @@ button.mode-card{
             <div class="panel-head">
               <div>
                 <h3>Skills</h3>
-                <p>支持 baseline / file / inline 三种形态。</p>
+                <p>支持 baseline、file、inline 三种 Skill 形态。</p>
               </div>
               <button class="btn btn-secondary" type="button" onclick="addBuilderSkill()">新增 Skill</button>
             </div>
@@ -1036,6 +2002,7 @@ button.mode-card{
     </div>
   </section>
 </div>
+<div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 const API = "";
@@ -1043,12 +2010,18 @@ const state = {
   config: null,
   configFiles: [],
   discoveredSkills: [],
+  discoveredSelection: {},
   repos: [],
+  page: "workbench",
   experimentMode: "coding",
+  expandedSkill: null,
+  sideTab: "run",
   taskMap: {},
   results: [],
   totalCount: 0,
   completedCount: 0,
+  runStage: "idle",
+  liveEvents: [],
   ws: null,
   currentRun: null,
   builder: {
@@ -1058,10 +2031,91 @@ const state = {
   },
 };
 
+const numberFormatter = new Intl.NumberFormat("zh-CN");
+const decimalFormatter = new Intl.NumberFormat("zh-CN", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
 function esc(value) {
   const div = document.createElement("div");
   div.textContent = value || "";
   return div.innerHTML;
+}
+
+function escAttr(value) {
+  return esc(value).replace(/"/g, "&quot;");
+}
+
+function repoLabel(value) {
+  const parts = String(value || "").split(/[\\/]/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "PR";
+}
+
+function resultPrEntries(result) {
+  if (!result) return [];
+  const items = Array.isArray(result.pr_urls) ? result.pr_urls.filter((item) => item?.url) : [];
+  if (items.length) {
+    return items.map((item, index) => ({
+      url: String(item.url || ""),
+      label: items.length === 1 ? "PR" : repoLabel(item.repo || `repo-${index + 1}`),
+    }));
+  }
+  if (result.pr_url) {
+    return [{url: String(result.pr_url), label: "PR"}];
+  }
+  return [];
+}
+
+function renderPrLinks(result) {
+  const items = resultPrEntries(result);
+  if (!items.length) return "-";
+  return items.map((item) => (
+    `<a href="${escAttr(item.url)}" target="_blank" rel="noreferrer">${esc(item.label)}</a>`
+  )).join("<br>");
+}
+
+function formatCount(value) {
+  return numberFormatter.format(Number(value) || 0);
+}
+
+function formatDecimal(value) {
+  return decimalFormatter.format(Number(value) || 0);
+}
+
+function formatDuration(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  return `${formatDecimal(value)}s`;
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).substring(0, 16);
+  return dateTimeFormatter.format(date);
+}
+
+function notify(message, type = "info") {
+  const region = document.getElementById("toast-region");
+  if (!region) return;
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`.trim();
+  toast.textContent = message;
+  region.appendChild(toast);
+  window.setTimeout(() => {
+    toast.remove();
+  }, 4200);
 }
 
 function statusText(status) {
@@ -1069,13 +2123,281 @@ function statusText(status) {
     pending: "等待中",
     running: "执行中",
     success: "成功",
+    suspicious: "可疑成功",
     failed: "失败",
     timeout: "超时",
     skipped: "跳过",
   }[status] || status;
 }
 
+function isFinalStatus(status) {
+  return ["success", "suspicious", "failed", "timeout", "skipped"].includes(status);
+}
+
+function taskKey(taskId, skillName) {
+  return `${taskId || ""}::${skillName || ""}`;
+}
+
+function formatClock(value) {
+  if (!value) return "--:--";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "--:--";
+  return timeFormatter.format(date);
+}
+
+function normalizeEventTime(value) {
+  if (typeof value === "number") return new Date(value * 1000).toISOString();
+  if (value) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function taskElapsedSeconds(task) {
+  if (task?.status === "running" && task.started_at) {
+    const startedAt = new Date(task.started_at).getTime();
+    if (!Number.isNaN(startedAt)) {
+      return Math.max((Date.now() - startedAt) / 1000, 0);
+    }
+  }
+  return Number(task?.duration || 0);
+}
+
+function syncViewState() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("page", state.page);
+  url.searchParams.set("panel", state.sideTab);
+  window.history.replaceState({}, "", `${url.pathname}?${url.searchParams.toString()}${url.hash}`);
+}
+
+function getInitialViewState() {
+  const url = new URL(window.location.href);
+  const page = ["workbench", "configs"].includes(url.searchParams.get("page")) ? url.searchParams.get("page") : "workbench";
+  const panel = ["run", "history", "settings"].includes(url.searchParams.get("panel")) ? url.searchParams.get("panel") : "run";
+  return { page, panel };
+}
+
+function setStartButtonState(disabled, label = "启动实验") {
+  const button = document.getElementById("btn-start");
+  if (!button) return;
+  button.disabled = disabled;
+  button.textContent = label;
+}
+
+function getTaskStats() {
+  const tasks = Object.values(state.taskMap);
+  const total = Math.max(state.totalCount, tasks.length);
+  const completed = tasks.filter((item) => isFinalStatus(item.status)).length;
+  const running = tasks.filter((item) => item.status === "running").length;
+  const success = tasks.filter((item) => item.status === "success").length;
+  const failed = tasks.filter((item) => item.status === "failed" || item.status === "timeout").length;
+  const pending = Math.max(total - completed - running, 0);
+  return { total, completed, running, success, failed, pending };
+}
+
+function updatePhaseRail() {
+  const order = ["queued", "preparing", "running", "completed"];
+  const activeIndex = state.runStage === "error" ? 2 : order.indexOf(state.runStage);
+  order.forEach((phase, index) => {
+    const node = document.getElementById(`phase-${phase}`);
+    if (!node) return;
+    const isDone = state.runStage === "completed" ? index <= activeIndex : index < activeIndex;
+    const isActive = state.runStage !== "completed" && index === activeIndex;
+    node.classList.toggle("is-done", isDone);
+    node.classList.toggle("is-active", isActive);
+  });
+}
+
+function setRunStage(stage, options = {}) {
+  state.runStage = stage;
+  const stats = getTaskStats();
+  state.totalCount = stats.total;
+  state.completedCount = stats.completed;
+
+  const labels = {
+    idle: "待命",
+    queued: "已提交",
+    preparing: "装配中",
+    running: "运行中",
+    completed: "已完成",
+    error: "失败",
+  };
+  const headlines = {
+    idle: "等待发起实验",
+    queued: "实验已进入队列",
+    preparing: "正在装配执行单元",
+    running: "实验正在持续执行",
+    completed: "实验已全部结束",
+    error: "实验异常中断",
+  };
+  const tones = {
+    idle: "idle",
+    queued: "active",
+    preparing: "warning",
+    running: "active",
+    completed: "success",
+    error: "error",
+  };
+  const progressText = `${formatCount(stats.completed)} / ${formatCount(stats.total)}`;
+  const label = labels[stage] || labels.idle;
+  const tone = tones[stage] || tones.idle;
+
+  document.getElementById("run-state").textContent = label;
+  document.getElementById("run-stage-label").textContent = label;
+  document.getElementById("run-headline").textContent = options.headline || headlines[stage] || headlines.idle;
+  document.getElementById("run-state-progress").textContent = progressText;
+  document.getElementById("run-stage-meta").textContent = progressText;
+  document.getElementById("run-state-pill").dataset.runTone = tone;
+  document.getElementById("run-spotlight").dataset.runTone = tone;
+  const runDot = document.getElementById("run-state-dot");
+  runDot.className = "dot";
+  if (tone === "idle") runDot.classList.add("off");
+  if (tone === "active") runDot.classList.add("active");
+  if (tone === "warning") runDot.classList.add("warn");
+  if (tone === "success") runDot.classList.add("success");
+  if (tone === "error") runDot.classList.add("error");
+  if (options.message) document.getElementById("live-text").textContent = options.message;
+  updateProgress();
+  updatePhaseRail();
+  updateWorkflowState();
+  updateLaunchStatus();
+}
+
+function pushLiveEvent(title, detail = "", tone = "info") {
+  state.liveEvents.unshift({
+    title,
+    detail,
+    tone,
+    at: new Date().toISOString(),
+  });
+  state.liveEvents = state.liveEvents.slice(0, 18);
+  renderLiveEvents();
+}
+
+function renderLiveEvents() {
+  const container = document.getElementById("live-events");
+  if (!container) return;
+  container.classList.toggle("is-empty", !state.liveEvents.length);
+  if (!state.liveEvents.length) {
+    container.innerHTML = '<div class="empty">实验开始后，流程变化会连续记录在这里。</div>';
+    document.getElementById("run-last-event-time").textContent = "--:--";
+    return;
+  }
+
+  container.innerHTML = state.liveEvents.map((item) => `
+    <div class="event-item" data-tone="${esc(item.tone)}">
+      <span class="event-dot" aria-hidden="true"></span>
+      <div class="event-copy">
+        <div class="event-head">
+          <div class="event-title">
+            <strong>${esc(item.title)}</strong>
+            <span class="event-badge">${esc(eventToneLabel(item.tone))}</span>
+          </div>
+          <span class="event-time mono">${esc(formatClock(item.at))}</span>
+        </div>
+        <p>${esc(item.detail || "状态已更新。")}</p>
+      </div>
+    </div>
+  `).join("");
+  document.getElementById("run-last-event-time").textContent = formatClock(state.liveEvents[0].at);
+}
+
+function eventToneLabel(tone) {
+  if (tone === "running") return "进行中";
+  if (tone === "success") return "已完成";
+  if (tone === "error") return "异常";
+  return "记录";
+}
+
+function ensureTaskEntry(payload) {
+  const key = taskKey(payload.task_id, payload.skill_name);
+  if (!state.taskMap[key]) {
+    state.taskMap[key] = {
+      task_id: payload.task_id,
+      task_name: payload.task_name || payload.task_id || "未命名任务",
+      skill_name: payload.skill_name || "unknown",
+      skill_tool: payload.skill_tool || "",
+      experiment_mode: payload.experiment_mode || state.experimentMode,
+      status: payload.status || "pending",
+      duration: payload.duration || 0,
+      started_at: payload.started_at || null,
+      updated_at: normalizeEventTime(payload.timestamp),
+      result: null,
+    };
+  }
+  return state.taskMap[key];
+}
+
+function syncResultIntoTask(result, payload = {}) {
+  const task = ensureTaskEntry({
+    ...payload,
+    task_id: result.task_id,
+    skill_name: result.skill_name,
+    task_name: result.task_name || payload.task_name,
+    skill_tool: result.skill_tool || payload.skill_tool,
+    experiment_mode: result.experiment_mode || payload.experiment_mode,
+  });
+  task.status = result.status || payload.status || task.status || "success";
+  task.duration = result.duration || 0;
+  task.experiment_mode = result.experiment_mode || payload.experiment_mode || task.experiment_mode;
+  task.skill_tool = result.skill_tool || payload.skill_tool || task.skill_tool;
+  task.updated_at = normalizeEventTime(payload.timestamp || result.timestamp);
+  task.result = result;
+  if (task.status === "running" && !task.started_at) {
+    task.started_at = normalizeEventTime(payload.timestamp);
+  }
+  upsertResult(result);
+  return task;
+}
+
+function upsertResult(result) {
+  const key = taskKey(result.task_id, result.skill_name);
+  const index = state.results.findIndex((item) => taskKey(item.task_id, item.skill_name) === key);
+  if (index >= 0) {
+    state.results[index] = result;
+    return;
+  }
+  state.results.push(result);
+}
+
+function resultFilesCount(result) {
+  const summary = result?.change_summary || {};
+  return summary.total_files || (result?.files_changed || []).length || 0;
+}
+
+function resultWarnings(result) {
+  if (!result) return [];
+  const explicit = Array.isArray(result.metadata?.validation_errors) ? result.metadata.validation_errors.filter(Boolean) : [];
+  if (explicit.length) return explicit;
+
+  const warnings = [];
+  if ((result.status || "") === "success" && (result.experiment_mode || "coding") === "coding" && resultFilesCount(result) === 0) {
+    warnings.push("Coding 模式未检测到任何文件变更");
+  }
+  return warnings;
+}
+
+function effectiveResultStatus(result) {
+  if (!result) return "pending";
+  if ((result.status || "") === "success" && resultWarnings(result).length) {
+    return "suspicious";
+  }
+  return result.status || "pending";
+}
+
+function effectiveTaskStatus(task) {
+  if (!task) return "pending";
+  if ((task.status || "") !== "success") return task.status || "pending";
+  return effectiveResultStatus(task.result || {});
+}
+
+function isEffectiveSuccess(result) {
+  return effectiveResultStatus(result) === "success";
+}
+
 function tagForStatus(status) {
+  if (status === "suspicious") return "warning";
   if (status === "success") return "success";
   if (status === "failed" || status === "timeout") return "failed";
   if (status === "running") return "running";
@@ -1083,12 +2405,34 @@ function tagForStatus(status) {
 }
 
 function switchPage(page) {
+  state.page = page;
   document.querySelectorAll(".page-shell").forEach((item) => {
     item.classList.toggle("active", item.id === `page-${page}`);
   });
   document.querySelectorAll(".nav-tab").forEach((item) => {
     item.classList.toggle("active", item.dataset.pageTarget === page);
   });
+  syncViewState();
+}
+
+function switchSideTab(tab) {
+  state.sideTab = tab;
+  document.querySelectorAll(".side-tab").forEach((item) => {
+    const active = item.dataset.sideTab === tab;
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  document.querySelectorAll(".tab-panel").forEach((item) => {
+    const active = item.id === `tab-${tab}`;
+    item.classList.toggle("active", active);
+    item.hidden = !active;
+  });
+  syncViewState();
+}
+
+function toggleSkillDetails(skillName) {
+  state.expandedSkill = state.expandedSkill === skillName ? null : skillName;
+  renderDiscoveredSkills();
 }
 
 function csvToList(value) {
@@ -1100,6 +2444,163 @@ function csvToList(value) {
 
 function listToCsv(value) {
   return (value || []).join(", ");
+}
+
+function toggleFilterEmpty(container, visibleCount, totalCount, message) {
+  let empty = container.querySelector('[data-filter-empty="true"]');
+  if (totalCount > 0 && visibleCount === 0) {
+    if (!empty) {
+      empty = document.createElement("div");
+      empty.className = "empty";
+      empty.dataset.filterEmpty = "true";
+      container.appendChild(empty);
+    }
+    empty.textContent = message;
+    return;
+  }
+  if (empty) empty.remove();
+}
+
+function applyTextFilter(containerId, itemSelector, query, emptyMessage) {
+  const container = document.getElementById(containerId);
+  if (!container) return { visible: 0, total: 0 };
+  const normalized = (query || "").trim().toLowerCase();
+  const items = Array.from(container.querySelectorAll(itemSelector));
+  let visible = 0;
+  items.forEach((item) => {
+    const matched = !normalized || item.textContent.toLowerCase().includes(normalized);
+    item.hidden = !matched;
+    if (matched) visible += 1;
+  });
+  toggleFilterEmpty(container, visible, items.length, emptyMessage);
+  return { visible, total: items.length };
+}
+
+function refreshWorkbenchFilters() {
+  applyTextFilter("repo-list", ".check-item", document.getElementById("repo-filter")?.value, "没有匹配的模块。");
+  applyTextFilter("task-list", ".check-item", document.getElementById("task-filter")?.value, "没有匹配的任务。");
+  applyTextFilter("discover-results", ".skill-card", document.getElementById("skill-filter")?.value, "没有匹配的 Skill。");
+}
+
+function getDiscoveredSelection(skill) {
+  return state.discoveredSelection[skill.name] || {
+    enabled: false,
+    refs: [...(skill.ref_files || [])],
+  };
+}
+
+function syncSkillCardStates() {
+  document.querySelectorAll('#discover-results input[data-role="skill-select"]').forEach((checkbox) => {
+    const card = checkbox.closest(".skill-card");
+    if (card) card.classList.toggle("is-selected", checkbox.checked);
+  });
+  document.querySelectorAll('#discover-results input[data-role="ref"]').forEach((checkbox) => {
+    const row = checkbox.closest(".ref-item");
+    if (row) row.classList.toggle("is-disabled", checkbox.disabled);
+  });
+}
+
+function updateWorkbenchMeta() {
+  document.getElementById("repo-count").textContent = formatCount(state.repos.length);
+  document.getElementById("repo-selected-count").textContent = formatCount(document.querySelectorAll('input[data-role="repo"]:checked').length);
+  document.getElementById("task-count").textContent = formatCount((state.config?.tasks || []).length);
+  document.getElementById("config-skill-count").textContent = formatCount((state.config?.skills || []).filter((skill) => skill.name !== "baseline").length);
+  document.getElementById("discover-count").textContent = formatCount(state.discoveredSkills.length);
+  document.getElementById("discover-selected-count").textContent = formatCount(document.querySelectorAll('input[data-role="skill-select"]:checked').length);
+  document.getElementById("discover-ref-count").textContent = formatCount(
+    Array.from(document.querySelectorAll('input[data-role="ref"]:checked')).filter((item) => !item.disabled).length
+  );
+}
+
+function updateRunKPIs() {
+  const stats = getTaskStats();
+  state.totalCount = stats.total;
+  state.completedCount = stats.completed;
+  document.getElementById("run-kpi-total").textContent = formatCount(stats.total);
+  document.getElementById("run-kpi-complete").textContent = formatCount(stats.completed);
+  document.getElementById("run-kpi-success").textContent = formatCount(stats.success);
+  document.getElementById("run-kpi-failed").textContent = formatCount(stats.failed);
+  document.getElementById("run-kpi-pending").textContent = formatCount(stats.pending);
+  document.getElementById("run-kpi-running").textContent = formatCount(stats.running);
+  document.getElementById("run-state-progress").textContent = `${formatCount(stats.completed)} / ${formatCount(stats.total)}`;
+  document.getElementById("run-stage-meta").textContent = `${formatCount(stats.completed)} / ${formatCount(stats.total)}`;
+}
+
+function selectedSkillCount() {
+  const includeBaseline = document.getElementById("include-baseline")?.checked;
+  return (includeBaseline ? 1 : 0)
+    + document.querySelectorAll('input[data-role="config-skill"]:checked').length
+    + document.querySelectorAll('input[data-role="skill-select"]:checked').length;
+}
+
+function updateWorkflowState() {
+  const hasConfig = Boolean(state.config);
+  const taskCount = document.querySelectorAll('input[data-role="task"]:checked').length;
+  const skillCount = selectedSkillCount();
+  const hasResults = state.results.length > 0;
+  const running = ["queued", "preparing", "running"].includes(state.runStage);
+  const done = ["completed", "error"].includes(state.runStage);
+
+  const steps = {
+    setup: hasConfig ? "done" : "active",
+    scope: !hasConfig ? "idle" : taskCount > 0 ? "done" : "active",
+    catalog: !hasConfig ? "idle" : skillCount > 0 ? "done" : taskCount > 0 ? "active" : "idle",
+    run: running ? "active" : done ? "done" : (hasConfig && taskCount > 0 && skillCount > 0 ? "active" : "idle"),
+    results: done ? (hasResults ? "done" : "active") : hasResults ? "active" : "idle",
+  };
+
+  const labels = {
+    active: "进行中",
+    done: "已完成",
+    idle: "待处理",
+  };
+
+  Object.entries(steps).forEach(([name, value]) => {
+    const card = document.querySelector(`[data-step="${name}"]`);
+    const badge = document.getElementById(`workflow-${name}-badge`);
+    if (card) card.dataset.stepState = value;
+    if (badge) badge.textContent = labels[value];
+  });
+}
+
+function updateLaunchStatus() {
+  const el = document.getElementById("launch-status");
+  if (!el) return;
+  const taskCount = document.querySelectorAll('input[data-role="task"]:checked').length;
+  const skillCount = selectedSkillCount();
+
+  if (["queued", "preparing", "running"].includes(state.runStage)) {
+    el.dataset.tone = "live";
+    el.textContent = `实验进行中：已完成 ${formatCount(state.completedCount)} / ${formatCount(state.totalCount)} 个执行单元，实时变化会同步到右侧运行中心。`;
+    return;
+  }
+  if (state.runStage === "completed") {
+    el.dataset.tone = "ready";
+    el.textContent = "实验已完成：可以直接查看交付结果、Git 凭证与 Skill 对比。";
+    return;
+  }
+  if (state.runStage === "error") {
+    el.dataset.tone = "error";
+    el.textContent = "实验异常中断：请先查看运行中心时间线中的错误提示，再决定是否重试。";
+    return;
+  }
+  if (!state.config) {
+    el.dataset.tone = "blocked";
+    el.textContent = "准备中：先加载配置，再确认本次实验要验证的任务与 Skill。";
+    return;
+  }
+  if (!taskCount) {
+    el.dataset.tone = "blocked";
+    el.textContent = "还不能启动：至少保留一个任务，避免把整个配置无差别跑完。";
+    return;
+  }
+  if (!skillCount) {
+    el.dataset.tone = "blocked";
+    el.textContent = "还不能启动：请保留基线组，或至少选择一个配置 Skill / 扫描 Skill。";
+    return;
+  }
+  el.dataset.tone = "ready";
+  el.textContent = `已准备就绪：当前将运行 ${formatCount(taskCount)} 个任务，覆盖 ${formatCount(skillCount)} 个实验组。`;
 }
 
 async function loadConfigFiles(root = ".") {
@@ -1146,12 +2647,12 @@ async function loadSelectedConfigFile() {
     const response = await fetch(`${API}/api/config/file?path=${encodeURIComponent(path)}`);
     const data = await response.json();
     if (!data.success) {
-      alert(data.error || "配置加载失败");
+      notify(data.error || "配置加载失败", "error");
       return;
     }
     renderBuilderConfig(data.config, path);
   } catch (error) {
-    alert(`配置加载失败: ${error.message}`);
+    notify(`配置加载失败: ${error.message}`, "error");
   }
 }
 
@@ -1180,7 +2681,7 @@ function renderBuilderConfig(config, path = "") {
 
   document.getElementById("builder-config-path").value = path || document.getElementById("builder-config-path").value;
   document.getElementById("builder-cli-command").value = current.cli?.command || "";
-  document.getElementById("builder-cli-timeout").value = current.cli?.timeout || 300;
+  document.getElementById("builder-cli-timeout").value = current.cli?.timeout || 1000;
   document.getElementById("builder-output-dir").value = current.output_dir || "results";
   document.getElementById("builder-max-workers").value = current.max_workers || 3;
   document.getElementById("builder-base-branch").value = current.git?.base_branch || "main";
@@ -1192,8 +2693,8 @@ function renderBuilderConfig(config, path = "") {
 }
 
 function updateBuilderSummary() {
-  document.getElementById("builder-task-count").textContent = String(state.builder.tasks.length);
-  document.getElementById("builder-skill-count").textContent = String(state.builder.skills.length);
+  document.getElementById("builder-task-count").textContent = formatCount(state.builder.tasks.length);
+  document.getElementById("builder-skill-count").textContent = formatCount(state.builder.skills.length);
   document.getElementById("builder-current-file").textContent = document.getElementById("builder-config-path").value || "未选择";
 }
 
@@ -1235,14 +2736,14 @@ function renderBuilderTasks() {
         <button class="btn btn-ghost" type="button" onclick="removeBuilderTask(${index})">删除</button>
       </div>
       <div class="inline-grid">
-        <div class="field"><label>ID</label><input type="text" value="${esc(task.id)}" oninput="updateBuilderTaskField(${index}, 'id', this.value)"></div>
-        <div class="field"><label>名称</label><input type="text" value="${esc(task.name)}" oninput="updateBuilderTaskField(${index}, 'name', this.value)"></div>
-        <div class="field"><label>模式</label><select onchange="updateBuilderTaskField(${index}, 'mode', this.value)"><option value="coding" ${task.mode === "coding" ? "selected" : ""}>coding</option><option value="solution" ${task.mode === "solution" ? "selected" : ""}>solution</option></select></div>
-        <div class="field"><label>超时</label><input type="text" value="${esc(task.timeout)}" oninput="updateBuilderTaskField(${index}, 'timeout', this.value)"></div>
+        <div class="field"><label for="builder-task-id-${index}">ID</label><input id="builder-task-id-${index}" type="text" value="${esc(task.id)}" oninput="updateBuilderTaskField(${index}, 'id', this.value)"></div>
+        <div class="field"><label for="builder-task-name-${index}">名称</label><input id="builder-task-name-${index}" type="text" value="${esc(task.name)}" oninput="updateBuilderTaskField(${index}, 'name', this.value)"></div>
+        <div class="field"><label for="builder-task-mode-${index}">模式</label><select id="builder-task-mode-${index}" onchange="updateBuilderTaskField(${index}, 'mode', this.value)"><option value="coding" ${task.mode === "coding" ? "selected" : ""}>coding</option><option value="solution" ${task.mode === "solution" ? "selected" : ""}>solution</option></select></div>
+        <div class="field"><label for="builder-task-timeout-${index}">超时</label><input id="builder-task-timeout-${index}" type="text" value="${esc(task.timeout)}" oninput="updateBuilderTaskField(${index}, 'timeout', this.value)"></div>
       </div>
-      <div class="field"><label>涉及模块</label><input type="text" value="${esc(listToCsv(task.repo_targets))}" placeholder="cloud-member, cloud-common…" oninput="updateBuilderTaskField(${index}, 'repo_targets', this.value)"></div>
-      <div class="field"><label>Prompt</label><textarea oninput="updateBuilderTaskField(${index}, 'prompt', this.value)">${esc(task.prompt)}</textarea></div>
-      <div class="field"><label>Expected Output</label><textarea oninput="updateBuilderTaskField(${index}, 'expected_output', this.value)">${esc(task.expected_output)}</textarea></div>
+      <div class="field"><label for="builder-task-repos-${index}">涉及模块</label><input id="builder-task-repos-${index}" type="text" value="${esc(listToCsv(task.repo_targets))}" placeholder="cloud-member, cloud-common…" oninput="updateBuilderTaskField(${index}, 'repo_targets', this.value)"></div>
+      <div class="field"><label for="builder-task-prompt-${index}">Prompt</label><textarea id="builder-task-prompt-${index}" oninput="updateBuilderTaskField(${index}, 'prompt', this.value)">${esc(task.prompt)}</textarea></div>
+      <div class="field"><label for="builder-task-output-${index}">Expected Output</label><textarea id="builder-task-output-${index}" oninput="updateBuilderTaskField(${index}, 'expected_output', this.value)">${esc(task.expected_output)}</textarea></div>
     </div>
   `).join("");
 }
@@ -1286,15 +2787,15 @@ function renderBuilderSkills() {
         <button class="btn btn-ghost" type="button" onclick="removeBuilderSkill(${index})">删除</button>
       </div>
       <div class="inline-grid">
-        <div class="field"><label>名称</label><input type="text" value="${esc(skill.name)}" oninput="updateBuilderSkillField(${index}, 'name', this.value)"></div>
-        <div class="field"><label>类型</label><select onchange="updateBuilderSkillField(${index}, 'type', this.value)"><option value="baseline" ${skill.type === "baseline" ? "selected" : ""}>baseline</option><option value="inline" ${skill.type === "inline" ? "selected" : ""}>inline</option><option value="file" ${skill.type === "file" ? "selected" : ""}>file</option></select></div>
-        <div class="field"><label>工具</label><input type="text" value="${esc(skill.tool)}" oninput="updateBuilderSkillField(${index}, 'tool', this.value)"></div>
-        <div class="field"><label>Origin</label><input type="text" value="${esc(skill.origin)}" oninput="updateBuilderSkillField(${index}, 'origin', this.value)"></div>
+        <div class="field"><label for="builder-skill-name-${index}">名称</label><input id="builder-skill-name-${index}" type="text" value="${esc(skill.name)}" oninput="updateBuilderSkillField(${index}, 'name', this.value)"></div>
+        <div class="field"><label for="builder-skill-type-${index}">类型</label><select id="builder-skill-type-${index}" onchange="updateBuilderSkillField(${index}, 'type', this.value)"><option value="baseline" ${skill.type === "baseline" ? "selected" : ""}>baseline</option><option value="inline" ${skill.type === "inline" ? "selected" : ""}>inline</option><option value="file" ${skill.type === "file" ? "selected" : ""}>file</option></select></div>
+        <div class="field"><label for="builder-skill-tool-${index}">工具</label><input id="builder-skill-tool-${index}" type="text" value="${esc(skill.tool)}" oninput="updateBuilderSkillField(${index}, 'tool', this.value)"></div>
+        <div class="field"><label for="builder-skill-origin-${index}">Origin</label><input id="builder-skill-origin-${index}" type="text" value="${esc(skill.origin)}" oninput="updateBuilderSkillField(${index}, 'origin', this.value)"></div>
       </div>
-      <div class="field"><label>Description</label><input type="text" value="${esc(skill.description)}" oninput="updateBuilderSkillField(${index}, 'description', this.value)"></div>
-      <div class="field"><label>Skill File</label><input type="text" value="${esc(skill.skill_file)}" oninput="updateBuilderSkillField(${index}, 'skill_file', this.value)"></div>
-      <div class="field"><label>Reference Files</label><input type="text" value="${esc(listToCsv(skill.ref_files))}" placeholder="references/a.md, references/b.md…" oninput="updateBuilderSkillField(${index}, 'ref_files', this.value)"></div>
-      <div class="field"><label>System Prompt</label><textarea oninput="updateBuilderSkillField(${index}, 'system_prompt', this.value)">${esc(skill.system_prompt)}</textarea></div>
+      <div class="field"><label for="builder-skill-description-${index}">Description</label><input id="builder-skill-description-${index}" type="text" value="${esc(skill.description)}" oninput="updateBuilderSkillField(${index}, 'description', this.value)"></div>
+      <div class="field"><label for="builder-skill-file-${index}">Skill File</label><input id="builder-skill-file-${index}" type="text" value="${esc(skill.skill_file)}" oninput="updateBuilderSkillField(${index}, 'skill_file', this.value)"></div>
+      <div class="field"><label for="builder-skill-ref-${index}">Reference Files</label><input id="builder-skill-ref-${index}" type="text" value="${esc(listToCsv(skill.ref_files))}" placeholder="references/a.md, references/b.md…" oninput="updateBuilderSkillField(${index}, 'ref_files', this.value)"></div>
+      <div class="field"><label for="builder-skill-prompt-${index}">System Prompt</label><textarea id="builder-skill-prompt-${index}" oninput="updateBuilderSkillField(${index}, 'system_prompt', this.value)">${esc(skill.system_prompt)}</textarea></div>
     </div>
   `).join("");
 }
@@ -1305,7 +2806,7 @@ function collectBuilderPayload() {
     cli: {
       command: document.getElementById("builder-cli-command").value.trim() || base.cli?.command || "claude",
       base_args: Array.isArray(base.cli?.base_args) ? base.cli.base_args : ["--print", "--dangerously-skip-permissions"],
-      timeout: Number(document.getElementById("builder-cli-timeout").value || base.cli?.timeout || 300),
+      timeout: Number(document.getElementById("builder-cli-timeout").value || base.cli?.timeout || 1000),
     },
     git: {
       author_name: base.git?.author_name || "AI Skill Tester",
@@ -1321,6 +2822,7 @@ function collectBuilderPayload() {
       max_delay: base.retry?.max_delay ?? 60.0,
       retry_on_timeout: base.retry?.retry_on_timeout ?? true,
       retry_on_failure: base.retry?.retry_on_failure ?? false,
+      timeout_increment_on_timeout: base.retry?.timeout_increment_on_timeout ?? 300,
     },
     max_workers: Number(document.getElementById("builder-max-workers").value || 3),
     output_dir: document.getElementById("builder-output-dir").value.trim() || base.output_dir || "results",
@@ -1357,7 +2859,7 @@ function collectBuilderPayload() {
 async function saveBuilderConfig() {
   const path = document.getElementById("builder-config-path").value.trim();
   if (!path) {
-    alert("请先填写保存路径");
+    notify("请先填写保存路径", "error");
     return;
   }
   const response = await fetch(`${API}/api/config/save`, {
@@ -1367,7 +2869,7 @@ async function saveBuilderConfig() {
   });
   const data = await response.json();
   if (!data.success) {
-    alert(data.error || "保存失败");
+    notify(data.error || "保存失败", "error");
     return;
   }
   await loadConfigFiles();
@@ -1376,13 +2878,13 @@ async function saveBuilderConfig() {
   document.getElementById("cfg-select").value = data.path;
   document.getElementById("builder-config-select").value = data.path;
   document.getElementById("builder-current-file").textContent = data.path;
-  alert(`已保存: ${data.path}`);
+  notify(`已保存: ${data.path}`, "success");
 }
 
 async function useBuilderConfig() {
   const path = document.getElementById("builder-config-path").value.trim();
   if (!path) {
-    alert("请先保存或加载一个配置文件");
+    notify("请先保存或加载一个配置文件", "error");
     return;
   }
   document.getElementById("cfg-path").value = path;
@@ -1393,7 +2895,7 @@ async function useBuilderConfig() {
 async function discoverRepos() {
   const path = document.getElementById("run-repo").value.trim();
   if (!path) {
-    alert("请先输入工作区路径");
+    notify("请先输入工作区根目录", "error");
     return;
   }
   const response = await fetch(`${API}/api/repos/discover`, {
@@ -1404,12 +2906,15 @@ async function discoverRepos() {
   const data = await response.json();
   state.repos = data.repos || [];
   renderRepoList();
+  notify(`已发现 ${formatCount(state.repos.length)} 个模块`, "success");
 }
 
 function renderRepoList() {
   const container = document.getElementById("repo-list");
   if (!state.repos.length) {
     container.innerHTML = '<div class="empty">当前路径下未发现子仓库，将在运行时按任务文本自动解析。</div>';
+    updateWorkbenchMeta();
+    updateSelectionSummary();
     return;
   }
   container.innerHTML = renderTasks(state.repos.map((repo) => `
@@ -1421,6 +2926,12 @@ function renderRepoList() {
       </div>
     </label>
   `));
+  container.querySelectorAll('input[data-role="repo"]').forEach((el) => {
+    el.addEventListener("change", updateSelectionSummary);
+  });
+  updateWorkbenchMeta();
+  refreshWorkbenchFilters();
+  updateSelectionSummary();
 }
 
 function selectExperimentMode(mode) {
@@ -1462,11 +2973,14 @@ function handleEvent(payload) {
     state.completedCount = 0;
     state.taskMap = {};
     state.results = [];
-    document.getElementById("run-state").textContent = "运行中";
-    document.getElementById("live-text").textContent = `实验已启动，共 ${state.totalCount} 个执行单元`;
-    document.getElementById("btn-start").disabled = true;
+    state.liveEvents = [];
+    setRunStage("preparing", { message: `实验已启动，共 ${state.totalCount} 个执行单元，正在装配任务与 Skill。` });
+    setStartButtonState(true, "实验进行中…");
     document.getElementById("result-panel").style.display = "none";
+    switchSideTab("run");
+    pushLiveEvent("实验已启动", `共 ${formatCount(state.totalCount)} 个执行单元，正在建立实时任务视图。`, "running");
     updateProgress();
+    updateRunKPIs();
     renderLiveTasks();
     renderResults();
     renderCompare();
@@ -1474,43 +2988,43 @@ function handleEvent(payload) {
   }
 
   if (event === "task_registered") {
-    const key = `${payload.task_id}::${payload.skill_name}`;
-    state.taskMap[key] = {
-      task_id: payload.task_id,
-      task_name: payload.task_name || payload.task_id,
-      skill_name: payload.skill_name,
-      skill_tool: payload.skill_tool || "",
-      experiment_mode: payload.experiment_mode || state.experimentMode,
-      status: "pending",
-      duration: 0,
-      result: null,
-    };
+    const task = ensureTaskEntry(payload);
+    task.status = "pending";
+    task.updated_at = normalizeEventTime(payload.timestamp);
+    if (state.runStage === "queued") {
+      setRunStage("preparing", { message: `执行单元正在装配中，已注册 ${formatCount(Object.keys(state.taskMap).length)} / ${formatCount(state.totalCount)} 个单元。` });
+    }
+    updateRunKPIs();
     renderLiveTasks();
   }
 
   if (event === "task_started") {
-    const key = `${payload.task_id}::${payload.skill_name}`;
-    if (state.taskMap[key]) {
-      state.taskMap[key].status = "running";
-      state.taskMap[key].experiment_mode = payload.experiment_mode || state.taskMap[key].experiment_mode;
-      state.taskMap[key].skill_tool = payload.skill_tool || state.taskMap[key].skill_tool;
-    }
+    const task = ensureTaskEntry(payload);
+    task.status = "running";
+    task.duration = 0;
+    task.experiment_mode = payload.experiment_mode || task.experiment_mode;
+    task.skill_tool = payload.skill_tool || task.skill_tool;
+    task.started_at = normalizeEventTime(payload.timestamp);
+    task.updated_at = task.started_at;
+    setRunStage("running", { message: `正在执行 ${task.task_name} · ${task.skill_name}，运行中心会持续同步最新进展。` });
+    pushLiveEvent("开始执行", `${task.task_name} · ${task.skill_name}`, "running");
+    updateRunKPIs();
     renderLiveTasks();
   }
 
   if (event === "task_completed") {
     const result = payload.result || {};
-    const key = `${payload.task_id}::${payload.skill_name}`;
-    if (state.taskMap[key]) {
-      state.taskMap[key].status = result.status || payload.status || "success";
-      state.taskMap[key].duration = result.duration || payload.duration || 0;
-      state.taskMap[key].experiment_mode = result.experiment_mode || payload.experiment_mode || state.taskMap[key].experiment_mode;
-      state.taskMap[key].skill_tool = result.skill_tool || state.taskMap[key].skill_tool;
-      state.taskMap[key].result = result;
+    const task = syncResultIntoTask(result, payload);
+    pushLiveEvent(
+      task.status === "success" ? "执行完成" : "执行失败",
+      `${task.task_name} · ${task.skill_name} · ${statusText(task.status)} · ${formatDuration(task.duration)}`,
+      task.status === "success" ? "success" : "error"
+    );
+    if (!["completed", "error"].includes(state.runStage)) {
+      setRunStage("running", { message: `最近完成：${task.task_name} · ${task.skill_name}，继续等待其余单元结果。` });
     }
-    state.completedCount += 1;
-    state.results.push(result);
     updateProgress();
+    updateRunKPIs();
     renderLiveTasks();
     renderResults();
     renderCompare();
@@ -1518,23 +3032,34 @@ function handleEvent(payload) {
   }
 
   if (event === "run_complete") {
-    document.getElementById("run-state").textContent = "已完成";
-    document.getElementById("live-text").textContent = `运行完成：成功 ${payload.success || 0} / 失败 ${payload.failed || 0} / 耗时 ${payload.elapsed || 0}s`;
-    document.getElementById("btn-start").disabled = false;
+    (payload.results || []).forEach((result) => syncResultIntoTask(result, payload));
+    updateRunKPIs();
+    renderLiveTasks();
+    renderResults();
+    renderCompare();
+    updateDeliveryMetric();
+    setRunStage("completed", { message: `运行完成：成功 ${payload.success || 0} / 失败 ${payload.failed || 0} / 耗时 ${payload.elapsed || 0}s` });
+    setStartButtonState(false, "重新启动");
     loadDashboardStats();
     loadHistory();
+    pushLiveEvent("实验已完成", `成功 ${payload.success || 0} / 失败 ${payload.failed || 0} / 总耗时 ${payload.elapsed || 0}s`, "success");
+    notify("实验运行完成", "success");
   }
 
   if (event === "run_error") {
-    document.getElementById("run-state").textContent = "失败";
-    document.getElementById("live-text").textContent = `运行失败：${payload.error || "未知错误"}`;
-    document.getElementById("btn-start").disabled = false;
+    setRunStage("error", { message: `运行失败：${payload.error || "未知错误"}` });
+    setStartButtonState(false, "重新启动");
+    updateRunKPIs();
+    pushLiveEvent("实验异常中断", payload.error || "未知错误", "error");
+    notify(`运行失败：${payload.error || "未知错误"}`, "error");
   }
 }
 
 function updateProgress() {
   const pct = state.totalCount ? (state.completedCount / state.totalCount) * 100 : 0;
   document.getElementById("live-progress").style.width = `${pct}%`;
+  document.getElementById("run-state-progress").textContent = `${formatCount(state.completedCount)} / ${formatCount(state.totalCount)}`;
+  document.getElementById("run-stage-meta").textContent = `${formatCount(state.completedCount)} / ${formatCount(state.totalCount)}`;
 }
 
 function renderTasks(tasks) {
@@ -1546,6 +3071,8 @@ function renderConfigTaskList(tasks) {
   const container = document.getElementById("task-list");
   if (!tasks || !tasks.length) {
     container.innerHTML = '<div class="empty">当前配置没有任务。</div>';
+    updateWorkbenchMeta();
+    updateSelectionSummary();
     return;
   }
   container.innerHTML = renderTasks(tasks.map((task) => `
@@ -1560,6 +3087,9 @@ function renderConfigTaskList(tasks) {
   container.querySelectorAll('input[data-role="task"]').forEach((el) => {
     el.addEventListener("change", updateSelectionSummary);
   });
+  updateWorkbenchMeta();
+  refreshWorkbenchFilters();
+  updateSelectionSummary();
 }
 
 function renderConfigSkillList(skills) {
@@ -1567,6 +3097,7 @@ function renderConfigSkillList(skills) {
   const usable = (skills || []).filter((skill) => skill.name !== "baseline");
   if (!usable.length) {
     container.innerHTML = '<div class="empty">当前配置没有额外 Skill，只有基线组可用。</div>';
+    updateWorkbenchMeta();
     updateSelectionSummary();
     return;
   }
@@ -1588,21 +3119,34 @@ function renderConfigSkillList(skills) {
   container.querySelectorAll('input[data-role="config-skill"]').forEach((el) => {
     el.addEventListener("change", updateSelectionSummary);
   });
+  updateWorkbenchMeta();
   updateSelectionSummary();
 }
 
 function renderDiscoveredSkills() {
   const container = document.getElementById("discover-results");
   if (!state.discoveredSkills.length) {
-    container.innerHTML = '<div class="empty">扫描后在这里选择实验组 Skill 与引用文件。</div>';
+    container.innerHTML = '<div class="empty">扫描完成后，在这里选择实验组 Skill 与引用文件。</div>';
+    state.expandedSkill = null;
+    updateWorkbenchMeta();
     updateSelectionSummary();
     return;
   }
 
   container.innerHTML = state.discoveredSkills.map((skill) => {
+    const isExpanded = state.expandedSkill === skill.name;
+    const hasRefs = (skill.ref_files || []).length > 0;
+    const selection = getDiscoveredSelection(skill);
     const refs = (skill.ref_files || []).map((ref, idx) => `
       <label class="ref-item">
-        <input type="checkbox" data-role="ref" name="ref_files" data-skill="${esc(skill.name)}" value="${esc(ref)}" checked>
+        <input
+          type="checkbox"
+          data-role="ref"
+          name="ref_files"
+          data-skill="${esc(skill.name)}"
+          value="${esc(ref)}"
+          ${selection.refs.includes(ref) ? "checked" : ""}
+        >
         <span class="mono">${esc(ref)}</span>
       </label>
     `).join("");
@@ -1619,14 +3163,29 @@ function renderDiscoveredSkills() {
             <h4>${esc(skill.name)}</h4>
             <p>${esc(skill.description || "未提供描述")}</p>
           </div>
-          <label class="pill">
-            <input type="checkbox" data-role="skill-select" name="discovered_skills" value="${esc(skill.name)}">
-            引用
-          </label>
+          <div class="skill-card-actions">
+            <label class="pill">
+              <input type="checkbox" data-role="skill-select" name="discovered_skills" value="${esc(skill.name)}" ${selection.enabled ? "checked" : ""}>
+              引用
+            </label>
+            ${hasRefs ? `
+              <button
+                class="btn btn-ghost skill-toggle"
+                type="button"
+                data-role="skill-toggle"
+                data-skill="${esc(skill.name)}"
+                aria-expanded="${isExpanded ? "true" : "false"}"
+              >
+                ${isExpanded ? "收起 Refs" : "查看 Refs"}
+              </button>
+            ` : ""}
+          </div>
         </div>
-        <div class="helper mono">${esc(skill.file || "")}</div>
-        <div class="refs">
-          ${refs || '<div class="helper">该 Skill 未发现可选 reference 文件。</div>'}
+        <div class="skill-card-body ${isExpanded ? "is-open" : ""}">
+          <div class="helper mono skill-file">${esc(skill.file || "")}</div>
+          <div class="refs">
+            ${refs || '<div class="helper">该 Skill 未发现可选 reference 文件。</div>'}
+          </div>
         </div>
       </div>
     `;
@@ -1636,23 +3195,55 @@ function renderDiscoveredSkills() {
     checkbox.addEventListener("change", (event) => {
       const skillName = event.target.value;
       const enabled = event.target.checked;
+      const skill = state.discoveredSkills.find((item) => item.name === skillName);
+      const fallbackRefs = skill ? [...(skill.ref_files || [])] : [];
+      const current = state.discoveredSelection[skillName] || { refs: fallbackRefs };
+      state.discoveredSelection[skillName] = {
+        enabled,
+        refs: current.refs?.length ? current.refs : fallbackRefs,
+      };
       container.querySelectorAll(`input[data-role="ref"][data-skill="${CSS.escape(skillName)}"]`).forEach((ref) => {
         ref.disabled = !enabled;
       });
+      syncSkillCardStates();
       updateSelectionSummary();
     });
   });
 
   container.querySelectorAll('input[data-role="ref"]').forEach((checkbox) => {
-    checkbox.disabled = true;
-    checkbox.addEventListener("change", updateSelectionSummary);
+    const skillName = checkbox.dataset.skill;
+    const skill = state.discoveredSkills.find((item) => item.name === skillName);
+    const selection = skill ? getDiscoveredSelection(skill) : { enabled: false };
+    checkbox.disabled = !selection.enabled;
+    checkbox.addEventListener("change", (event) => {
+      const refSkillName = event.target.dataset.skill;
+      const refs = Array.from(container.querySelectorAll(`input[data-role="ref"][data-skill="${CSS.escape(refSkillName)}"]:checked`))
+        .map((item) => item.value);
+      const existing = state.discoveredSelection[refSkillName] || { enabled: false, refs: [] };
+      state.discoveredSelection[refSkillName] = {
+        enabled: existing.enabled,
+        refs,
+      };
+      updateSelectionSummary();
+    });
   });
+  container.querySelectorAll('button[data-role="skill-toggle"]').forEach((button) => {
+    button.addEventListener("click", () => toggleSkillDetails(button.dataset.skill));
+  });
+  syncSkillCardStates();
+  updateWorkbenchMeta();
+  refreshWorkbenchFilters();
   updateSelectionSummary();
 }
 
 function renderLiveTasks() {
   const container = document.getElementById("live-tasks");
-  const tasks = Object.values(state.taskMap);
+  const rank = { running: 0, pending: 1, failed: 2, timeout: 2, suspicious: 3, success: 4, skipped: 5 };
+  const tasks = Object.values(state.taskMap).sort((a, b) => {
+    const rankGap = (rank[effectiveTaskStatus(a)] ?? 9) - (rank[effectiveTaskStatus(b)] ?? 9);
+    if (rankGap !== 0) return rankGap;
+    return String(b.updated_at || "").localeCompare(String(a.updated_at || ""));
+  });
   if (!tasks.length) {
     container.innerHTML = '<div class="empty">运行中的任务会实时显示在这里。</div>';
     return;
@@ -1660,12 +3251,23 @@ function renderLiveTasks() {
 
   container.innerHTML = tasks.map((task) => {
     const result = task.result || {};
-    const changeSummary = result.change_summary || {};
-    const filesCount = changeSummary.total_files || (result.files_changed || []).length || 0;
+    const filesCount = resultFilesCount(result);
     const commit = result.commit_hash ? result.commit_hash.slice(0, 10) : "-";
     const pushText = result.pushed ? "已推送" : "未推送";
+    const prEntries = resultPrEntries(result);
+    const prMeta = prEntries.length ? `<span>PR ${renderPrLinks(result)}</span>` : "";
+    const updatedAt = task.updated_at ? formatClock(task.updated_at) : "--:--";
+    const duration = taskElapsedSeconds(task);
+    const retryCount = Number(result.metadata?.retries || 0);
+    const retryText = retryCount > 0 ? `，重试 ${retryCount} 次` : "";
+    const displayStatus = effectiveTaskStatus(task);
+    const warnings = resultWarnings(result);
+    const warningText = warnings.length ? `；${warnings.join("；")}` : "";
+    const statusSummary = displayStatus === "running"
+      ? `已运行 ${formatDuration(duration)}`
+      : `${statusText(displayStatus)} · ${formatDuration(duration)}${retryText}`;
     return `
-      <div class="run-item">
+      <div class="run-item ${displayStatus === "running" ? "is-running" : ""} ${isFinalStatus(displayStatus) ? "is-final" : ""}">
         <div class="run-item-top">
           <div>
             <div class="run-item-title">${esc(task.task_name)}</div>
@@ -1673,17 +3275,48 @@ function renderLiveTasks() {
               <span class="tag tool">${esc(task.skill_tool || "manual")}</span>
               <span class="tag status">${esc(task.skill_name)}</span>
               <span class="tag mode">${esc(task.experiment_mode || "coding")}</span>
-              <span class="tag ${tagForStatus(task.status)}">${statusText(task.status)}</span>
+              <span class="tag ${tagForStatus(displayStatus)}">${statusText(displayStatus)}</span>
             </div>
           </div>
-          <div class="helper mono">${task.duration ? `${task.duration.toFixed(1)}s` : "-"}</div>
+          <div class="helper mono">${formatDuration(duration)}</div>
         </div>
-        <div class="helper" style="margin-top:10px">
-          文件变更 ${filesCount} 个，提交 ${esc(commit)}，${esc(pushText)}。
+        <div class="run-item-meta helper">
+          <span>最近更新 ${esc(updatedAt)}</span>
+          <span>文件变更 ${filesCount} 个</span>
+          <span>提交 ${esc(commit)}</span>
+          <span>${esc(pushText)}</span>
+          ${prMeta}
+        </div>
+        <div class="helper" style="margin-top:8px">
+          ${esc(statusSummary)}；文件变更 ${filesCount} 个，提交 ${esc(commit)}，${esc(pushText)}${esc(warningText)}。
         </div>
       </div>
     `;
   }).join("");
+}
+
+function renderResultsOverview() {
+  const container = document.getElementById("results-overview");
+  if (!state.results.length) {
+    container.innerHTML = '<div class="empty" style="grid-column:1 / -1">运行完成后显示关键指标。</div>';
+    return;
+  }
+
+  const success = state.results.filter((item) => isEffectiveSuccess(item)).length;
+  const suspicious = state.results.filter((item) => effectiveResultStatus(item) === "suspicious").length;
+  const commits = state.results.filter((item) => item.commit_hash).length;
+  const pushes = state.results.filter((item) => item.pushed).length;
+  const avgDuration = state.results.length
+    ? state.results.reduce((sum, item) => sum + (item.duration || 0), 0) / state.results.length
+    : 0;
+
+  container.innerHTML = `
+    <div class="kpi-card"><span>实验单元</span><strong>${formatCount(state.results.length)}</strong></div>
+    <div class="kpi-card"><span>成功率</span><strong>${state.results.length ? `${formatDecimal((success / state.results.length) * 100)}%` : "-"}</strong></div>
+    <div class="kpi-card"><span>平均耗时</span><strong>${formatDuration(avgDuration)}</strong></div>
+    <div class="kpi-card"><span>提交 / 推送</span><strong>${formatCount(commits)} / ${formatCount(pushes)}</strong></div>
+    <div class="kpi-card"><span>可疑成功</span><strong>${formatCount(suspicious)}</strong></div>
+  `;
 }
 
 function renderCompare() {
@@ -1710,9 +3343,9 @@ function renderCompare() {
     }
     const item = metrics[key];
     item.total += 1;
-    if (result.status === "success") item.success += 1;
+    if (isEffectiveSuccess(result)) item.success += 1;
     item.duration += result.duration || 0;
-    item.files += (result.change_summary?.total_files || 0);
+    item.files += resultFilesCount(result);
     if (result.commit_hash) item.commits += 1;
     if (result.pushed) item.pushes += 1;
   });
@@ -1735,21 +3368,23 @@ function renderCompare() {
   }).join("");
 
   container.innerHTML = `
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Skill</th>
-          <th>工具</th>
-          <th>运行数</th>
-          <th>成功率</th>
-          <th>平均耗时</th>
-          <th>变更文件</th>
-          <th>提交</th>
-          <th>推送</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
+    <div class="table-shell">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Skill</th>
+            <th>工具</th>
+            <th>运行数</th>
+            <th>成功率</th>
+            <th>平均耗时</th>
+            <th>变更文件</th>
+            <th>提交</th>
+            <th>推送</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
   `;
 }
 
@@ -1758,46 +3393,55 @@ function renderResults() {
   if (!state.results.length) {
     document.getElementById("result-panel").style.display = "none";
     container.innerHTML = '<div class="empty">运行完成后显示详细结果。</div>';
+    renderResultsOverview();
     return;
   }
   document.getElementById("result-panel").style.display = "";
+  renderResultsOverview();
 
   const rows = state.results.map((result) => {
-    const summary = result.change_summary || {};
+    const filesCount = resultFilesCount(result);
+    const displayStatus = effectiveResultStatus(result);
+    const warnings = resultWarnings(result);
+    const warningTitle = warnings.length ? ` title="${escAttr(warnings.join("；"))}"` : "";
     return `
       <tr>
         <td>${esc(result.task_name || result.task_id)}</td>
         <td>${esc(result.skill_name)}</td>
         <td>${esc(result.skill_tool || result.metadata?.skill_tool || "-")}</td>
         <td>${esc(result.experiment_mode || "-")}</td>
-        <td><span class="tag ${tagForStatus(result.status)}">${statusText(result.status)}</span></td>
+        <td><span class="tag ${tagForStatus(displayStatus)}"${warningTitle}>${statusText(displayStatus)}</span></td>
         <td>${(result.duration || 0).toFixed(1)}s</td>
-        <td>${summary.total_files || 0}</td>
+        <td>${filesCount}</td>
         <td class="mono">${esc(result.commit_hash || "-")}</td>
         <td>${result.pushed ? "已推送" : "未推送"}</td>
+        <td>${renderPrLinks(result)}</td>
         <td class="mono">${esc(result.deliverable_path || "-")}</td>
       </tr>
     `;
   }).join("");
 
   container.innerHTML = `
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>任务</th>
-          <th>Skill</th>
-          <th>工具</th>
-          <th>实验模式</th>
-          <th>状态</th>
-          <th>耗时</th>
-          <th>文件数</th>
-          <th>提交</th>
-          <th>推送</th>
-          <th>交付文件</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
+    <div class="table-shell">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>任务</th>
+            <th>Skill</th>
+            <th>工具</th>
+            <th>实验模式</th>
+            <th>状态</th>
+            <th>耗时</th>
+            <th>文件数</th>
+            <th>提交</th>
+            <th>推送</th>
+            <th>PR</th>
+            <th>交付文件</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
   `;
 }
 
@@ -1806,23 +3450,28 @@ function updateSelectionSummary() {
   const configSkills = document.querySelectorAll('input[data-role="config-skill"]:checked').length;
   const discoveredSkills = document.querySelectorAll('input[data-role="skill-select"]:checked').length;
   const refs = Array.from(document.querySelectorAll('input[data-role="ref"]:checked')).filter((el) => !el.disabled).length;
-  document.getElementById("summary-tasks").textContent = String(tasks);
-  document.getElementById("summary-config-skills").textContent = String(configSkills);
-  document.getElementById("summary-discovered-skills").textContent = String(discoveredSkills);
-  document.getElementById("summary-refs").textContent = String(refs);
+  document.getElementById("summary-tasks").textContent = formatCount(tasks);
+  document.getElementById("summary-config-skills").textContent = formatCount(configSkills);
+  document.getElementById("summary-discovered-skills").textContent = formatCount(discoveredSkills);
+  document.getElementById("summary-refs").textContent = formatCount(refs);
+  updateWorkbenchMeta();
+  syncSkillCardStates();
+  updateWorkflowState();
+  updateLaunchStatus();
 }
 
 function updateDeliveryMetric() {
   if (!state.results.length) {
     document.getElementById("metric-delivery").textContent = "-";
-    document.getElementById("metric-delivery-hint").textContent = "当前运行结果中的 Git 交付占比";
+    document.getElementById("metric-delivery-hint").textContent = "当前运行中的 Git 交付占比";
     return;
   }
   const commits = state.results.filter((item) => item.commit_hash).length;
   const pushes = state.results.filter((item) => item.pushed).length;
+  const suspicious = state.results.filter((item) => effectiveResultStatus(item) === "suspicious").length;
   const commitRate = state.results.length ? ((commits / state.results.length) * 100).toFixed(0) : "0";
   document.getElementById("metric-delivery").textContent = `${commitRate}%`;
-  document.getElementById("metric-delivery-hint").textContent = `当前运行：${commits} 次提交 / ${pushes} 次推送`;
+  document.getElementById("metric-delivery-hint").textContent = `当前运行：${formatCount(commits)} 次提交 / ${formatCount(pushes)} 次推送 / ${formatCount(suspicious)} 条可疑成功`;
 }
 
 async function loadDashboardStats() {
@@ -1837,7 +3486,7 @@ async function loadDashboardStats() {
     document.getElementById("platform-version").textContent = `v${status.version || "4.0.0"}`;
 
     const stats = history.stats || [];
-    document.getElementById("metric-total").textContent = String(history.total || 0);
+    document.getElementById("metric-total").textContent = formatCount(history.total || 0);
 
     if (!stats.length) {
       document.getElementById("metric-rate").textContent = "-";
@@ -1854,8 +3503,8 @@ async function loadDashboardStats() {
       weightedDuration += (item.avg_duration || 0) * (item.total_runs || 0);
     });
 
-    document.getElementById("metric-rate").textContent = total ? `${((success / total) * 100).toFixed(1)}%` : "-";
-    document.getElementById("metric-time").textContent = total ? `${(weightedDuration / total).toFixed(1)}s` : "-";
+    document.getElementById("metric-rate").textContent = total ? `${formatDecimal((success / total) * 100)}%` : "-";
+    document.getElementById("metric-time").textContent = total ? formatDuration(weightedDuration / total) : "-";
   } catch (error) {
     console.error(error);
   }
@@ -1864,7 +3513,7 @@ async function loadDashboardStats() {
 async function loadConfig() {
   const path = document.getElementById("cfg-path").value.trim() || document.getElementById("cfg-select").value;
   if (!path) {
-    alert("请先输入配置文件路径");
+    notify("请先输入配置文件路径", "error");
     return;
   }
 
@@ -1875,7 +3524,7 @@ async function loadConfig() {
   });
   const data = await response.json();
   if (!data.success) {
-    alert(data.error || "配置加载失败");
+    notify(data.error || "配置加载失败", "error");
     return;
   }
   document.getElementById("cfg-path").value = path;
@@ -1886,6 +3535,7 @@ async function loadConfig() {
   renderConfigSkillList(state.config.skills || []);
   renderSettings(state.config);
   loadHistory();
+  notify(`已加载配置: ${path}`, "success");
   updateSelectionSummary();
 }
 
@@ -1900,7 +3550,7 @@ function renderSettings(config) {
         <div class="row"><span>输出目录</span><strong>${esc(config.output_dir)}</strong></div>
         <div class="row"><span>最大并发</span><strong>${config.max_workers}</strong></div>
       </div>
-      <div class="helper">当前加载 ${tasks.length} 个任务，${skills.length} 个 Skill。</div>
+      <div class="helper">当前配置包含 ${tasks.length} 个任务，${skills.length} 个 Skill。</div>
     </div>
   `;
   document.getElementById("settings-body").innerHTML = html;
@@ -1919,26 +3569,28 @@ async function loadHistory() {
     const rows = data.stats.map((item) => `
       <tr>
         <td><strong>${esc(item.skill_name)}</strong></td>
-        <td>${item.total_runs}</td>
+        <td>${formatCount(item.total_runs)}</td>
         <td>${item.success_rate}%</td>
-        <td>${item.avg_duration}s</td>
-        <td>${esc((item.last_run || "").substring(0, 16))}</td>
+        <td>${formatDuration(item.avg_duration)}</td>
+        <td>${esc(formatDateTime(item.last_run || ""))}</td>
       </tr>
     `).join("");
 
     container.innerHTML = `
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Skill</th>
-            <th>运行数</th>
-            <th>成功率</th>
-            <th>平均耗时</th>
-            <th>最后运行</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
+      <div class="table-shell">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Skill</th>
+              <th>运行数</th>
+              <th>成功率</th>
+              <th>平均耗时</th>
+              <th>最后运行</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
     `;
   } catch (error) {
     document.getElementById("history-stats").innerHTML = '<div class="empty">历史数据加载失败。</div>';
@@ -1948,7 +3600,7 @@ async function loadHistory() {
 async function discoverSkills() {
   const path = document.getElementById("disc-path").value.trim() || document.getElementById("run-repo").value.trim();
   if (!path) {
-    alert("请先输入需要扫描的仓库路径");
+    notify("请先输入需要扫描的仓库路径", "error");
     return;
   }
 
@@ -1959,7 +3611,10 @@ async function discoverSkills() {
   });
   const data = await response.json();
   state.discoveredSkills = data.skills || [];
+  state.discoveredSelection = {};
+  state.expandedSkill = null;
   renderDiscoveredSkills();
+  notify(`已扫描到 ${formatCount(state.discoveredSkills.length)} 个 Skill`, "success");
 }
 
 function collectSelectedTasks() {
@@ -1990,7 +3645,7 @@ function collectSelectedDiscoveredSkills() {
 
 async function startRun() {
   if (!state.config) {
-    alert("请先加载配置文件");
+    notify("请先加载配置", "error");
     return;
   }
 
@@ -2000,12 +3655,12 @@ async function startRun() {
   const includeBaseline = document.getElementById("include-baseline").checked;
 
   if (!taskIds.length) {
-    alert("至少选择一个任务");
+    notify("至少选择一个任务", "error");
     return;
   }
 
   if (!includeBaseline && !configSkills.length && !selectedSkills.length) {
-    alert("至少保留一个实验组 Skill 或基线组");
+    notify("至少保留一个实验组 Skill 或基线组", "error");
     return;
   }
 
@@ -2024,8 +3679,7 @@ async function startRun() {
     selected_skills: selectedSkills,
   };
 
-  const button = document.getElementById("btn-start");
-  button.disabled = true;
+  setStartButtonState(true, "提交中…");
 
   try {
     const response = await fetch(`${API}/api/runs`, {
@@ -2035,27 +3689,63 @@ async function startRun() {
     });
     const data = await response.json();
     if (!response.ok || data.error) {
-      alert(data.error || "启动失败");
-      button.disabled = false;
+      notify(data.error || "启动失败", "error");
+      setStartButtonState(false, "启动实验");
       return;
     }
     state.currentRun = data.run_id;
-    document.getElementById("run-state").textContent = "准备中";
+    state.totalCount = data.total || state.totalCount;
+    state.completedCount = 0;
+    state.taskMap = {};
+    state.results = [];
+    state.liveEvents = [];
+    const actualMode = data.effective_mode || data.mode || body.mode;
+    const modeHint = actualMode && actualMode !== body.mode ? `，实际执行模式已切换为 ${actualMode}` : "";
     const resolvedRepos = (data.resolved_repo_paths || []).length ? `，目标仓库 ${(data.resolved_repo_paths || []).join(" / ")}` : "";
-    document.getElementById("live-text").textContent = `实验已提交，预计执行 ${data.total || 0} 个单元${resolvedRepos}`;
+    document.getElementById("result-panel").style.display = "none";
+    setRunStage("queued", { message: `实验已提交，预计执行 ${data.total || 0} 个单元${resolvedRepos}${modeHint}` });
+    renderLiveEvents();
+    renderLiveTasks();
+    renderResults();
+    renderCompare();
+    updateRunKPIs();
+    updateProgress();
+    updateDeliveryMetric();
+    pushLiveEvent("实验已提交", `预计执行 ${data.total || 0} 个单元${resolvedRepos}${modeHint}`, "running");
+    if (modeHint) {
+      notify(`已自动切换为 ${actualMode}，确保任务完成后立即提交并推送`, "success");
+    }
+    switchSideTab("run");
+    notify("实验已提交到运行队列", "success");
   } catch (error) {
-    alert(`启动失败: ${error.message}`);
-    button.disabled = false;
+    notify(`启动失败: ${error.message}`, "error");
+    setStartButtonState(false, "启动实验");
   }
 }
 
+const initialView = getInitialViewState();
 selectExperimentMode("coding");
+document.getElementById("repo-filter").addEventListener("input", refreshWorkbenchFilters);
+document.getElementById("task-filter").addEventListener("input", refreshWorkbenchFilters);
+document.getElementById("skill-filter").addEventListener("input", refreshWorkbenchFilters);
 connectWS();
+window.setInterval(() => {
+  if (["queued", "preparing", "running"].includes(state.runStage)) {
+    renderLiveTasks();
+  }
+}, 1000);
+switchPage(initialView.page);
+switchSideTab(initialView.panel);
+updateWorkbenchMeta();
+updateRunKPIs();
+updateWorkflowState();
+updateLaunchStatus();
+renderLiveEvents();
 loadDashboardStats();
 loadHistory();
 loadConfigFiles();
 renderBuilderConfig({
-  cli: {command: "claude", timeout: 300},
+  cli: {command: "claude", timeout: 1000},
   git: {base_branch: "main", branch_prefix: "skill-test"},
   output_dir: "results",
   max_workers: 3,

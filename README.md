@@ -52,7 +52,7 @@ python -m skill_test run -c config.yaml -m simple
 # 并行模式 — 线程池并发
 python -m skill_test run -c config.yaml -m parallel
 
-# 隔离模式 — 每个 task×skill 在独立 worktree 中
+# 隔离模式 — 每个 task×skill 在独立 worktree 中（默认）
 python -m skill_test run -c config.yaml -r /path/to/repo -m isolated
 
 # 隔离 + 自动提交推送
@@ -87,7 +87,12 @@ python -m skill_test report results/report_20260320.json -f markdown -o report.m
 | 配置 | 说明 |
 |------|------|
 | `cli.command` | Claude CLI 命令（Windows: `claude.cmd`） |
-| `cli.timeout` | 单个任务超时（秒） |
+| `cli.timeout` | 单个任务超时（秒，`coding` 模式默认至少 1000s） |
+| `openai.enabled` | 是否切换到 OpenAI Responses API 运行时 |
+| `openai.model` | Responses API 使用的模型名 |
+| `openai.api_mode` | `responses` 或 `chat_completions`，用于兼容不同网关能力 |
+| `openai.tool_type` | `shell` 或 `local_shell`，用于 coding agent 本地命令回环 |
+| `retry.timeout_increment_on_timeout` | 因超时进入重试时，下一次额外增加的秒数（默认 300s） |
 | `max_workers` | 最大并行数 |
 | `tasks[]` | 测试任务列表 |
 | `skills[]` | Skill 配置列表 |
@@ -116,6 +121,20 @@ Skill 新增关键字段：
 | `SKILL_TEST_MAX_WORKERS` | `max_workers` |
 | `SKILL_TEST_OUTPUT_DIR` | `output_dir` |
 | `SKILL_TEST_CLI_COMMAND` | `cli.command` |
+| `OPENAI_API_KEY` / `SKILL_TEST_OPENAI_API_KEY` | `openai.api_key` |
+| `OPENAI_BASE_URL` / `SKILL_TEST_OPENAI_BASE_URL` | `openai.base_url` |
+| `OPENAI_MODEL` / `SKILL_TEST_OPENAI_MODEL` | `openai.model` |
+
+### OpenAI Responses API 骨架
+
+仓库内置了一个可选的 OpenAI Responses API 执行器骨架，路径为 [openai_executor.py](/Users/ga666666/Desktop/skill-test/skill_test/openai_executor.py)。
+
+- 当 `openai.enabled=true` 时，`TestRunner` 会改用 Responses API 执行，而不是本地 `claude` CLI。
+- 默认采用 OpenAI 官方推荐的本地 `shell` 回环模式；模型发出命令，你的本地 runtime 执行，再把 `shell_call_output` 回传给模型。
+- 如果目标网关只兼容 OpenAI Chat Completions，可以将 `openai.api_mode` 设为 `chat_completions`；仓库内置了这一兼容回环实现。
+- 如果你要对接兼容网关，可以在 `openai.base_url` 中指定；前提是该网关实现了 `/v1/responses` 与 shell 工具协议。
+- 示例配置见 [openai_responses_example.yaml](/Users/ga666666/Desktop/skill-test/openai_responses_example.yaml)。
+- MiniMax 兼容示例见 [minimax_compatible_example.yaml](/Users/ga666666/Desktop/skill-test/minimax_compatible_example.yaml)。
 
 ## 平台化工作流
 
@@ -165,7 +184,7 @@ CLI (cli.py) → TestRunner (runner.py)
 |------|------|----------|
 | `simple` | 串行执行 | 调试、少量任务 |
 | `parallel` | 线程池并行 | 无需 Git 隔离的批量测试 |
-| `isolated` | Worktree 并行 | 需要独立代码空间的测试 |
+| `isolated` | Worktree 并行 | 默认模式，适合需要独立代码空间和 Git 交付记录的测试 |
 | `auto` | 有 repo 用 isolated，否则 parallel | 默认 |
 
 ## 实验模式

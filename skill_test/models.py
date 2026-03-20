@@ -36,6 +36,10 @@ class ExperimentMode(str, Enum):
 
 # ─── 配置模型 ────────────────────────────────────────────────────────────────
 
+DEFAULT_TIMEOUT_SECONDS = 300
+DEFAULT_CODING_TIMEOUT_SECONDS = 1000
+DEFAULT_TIMEOUT_INCREMENT_ON_TIMEOUT_SECONDS = 300
+
 @dataclass
 class SkillConfig:
     """单个 Skill 的配置。"""
@@ -72,7 +76,25 @@ class CLIConfig:
         "--print",
         "--dangerously-skip-permissions",
     ])
-    timeout: int = 300
+    timeout: int = DEFAULT_TIMEOUT_SECONDS
+
+
+@dataclass
+class OpenAIResponsesConfig:
+    """OpenAI Responses API 运行时配置。"""
+    enabled: bool = False
+    api_key_env: str = "OPENAI_API_KEY"
+    api_key: str = ""
+    base_url: str = ""
+    model: str = "gpt-5.3-codex"
+    api_mode: str = "responses"
+    timeout: int = DEFAULT_CODING_TIMEOUT_SECONDS
+    tool_type: str = "local_shell"
+    store: bool = False
+    reasoning_effort: str = "medium"
+    max_tool_rounds: int = 12
+    shell_timeout_ms: int = 120000
+    max_output_chars: int = 16000
 
 
 @dataclass
@@ -94,6 +116,7 @@ class RetryConfig:
     max_delay: float = 60.0
     retry_on_timeout: bool = True
     retry_on_failure: bool = False
+    timeout_increment_on_timeout: int = DEFAULT_TIMEOUT_INCREMENT_ON_TIMEOUT_SECONDS
 
 
 @dataclass
@@ -108,6 +131,7 @@ class SkillGroup:
 class AppConfig:
     """全局应用配置。"""
     cli: CLIConfig = field(default_factory=CLIConfig)
+    openai: OpenAIResponsesConfig = field(default_factory=OpenAIResponsesConfig)
     git: GitConfig = field(default_factory=GitConfig)
     retry: RetryConfig = field(default_factory=RetryConfig)
     tasks: list[TaskConfig] = field(default_factory=list)
@@ -193,6 +217,19 @@ class TaskResult:
         return self.metadata.get("deliverable_path", "")
 
     @property
+    def pr_url(self) -> str:
+        return self.metadata.get("pr_url", "")
+
+    @property
+    def pr_urls(self) -> list[dict]:
+        value = self.metadata.get("pr_urls")
+        return value if isinstance(value, list) else []
+
+    @property
+    def cloud_stored(self) -> bool:
+        return bool(self.metadata.get("cloud_stored"))
+
+    @property
     def skill_tool(self) -> str:
         return self.metadata.get("skill_tool", "")
 
@@ -207,6 +244,9 @@ class TaskResult:
         d["commit_hash"] = self.commit_hash
         d["pushed"] = self.pushed
         d["deliverable_path"] = self.deliverable_path
+        d["pr_url"] = self.pr_url
+        d["pr_urls"] = self.pr_urls
+        d["cloud_stored"] = self.cloud_stored
         d["skill_tool"] = self.skill_tool
         return d
 
@@ -216,7 +256,7 @@ class RunSession:
     """一次完整的测试会话。"""
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     config_name: str = ""
-    mode: str = "auto"
+    mode: str = "isolated"
     experiment_mode: str = "task"
     repo_path: str = ""
     started_at: str = field(default_factory=lambda: datetime.now().isoformat())

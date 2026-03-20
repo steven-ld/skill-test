@@ -75,7 +75,7 @@ if FASTAPI_AVAILABLE:
         description: str = ""
 
     class RunRequest(BaseModel):
-        mode: str = "auto"
+        mode: str = "isolated"
         experiment_mode: str = "task"
         repo_path: str = ""
         repo_paths: List[str] = []
@@ -181,8 +181,21 @@ def create_app() -> FastAPI:
         return {
             "path": state.config_path,
             "cli": {"command": c.cli.command, "timeout": c.cli.timeout},
+            "openai": {
+                "enabled": c.openai.enabled,
+                "api_key_env": c.openai.api_key_env,
+                "base_url": c.openai.base_url,
+                "model": c.openai.model,
+                "api_mode": c.openai.api_mode,
+                "timeout": c.openai.timeout,
+                "tool_type": c.openai.tool_type,
+            },
             "git": {"base_branch": c.git.base_branch, "cleanup": c.git.cleanup_on_finish},
-            "retry": {"max_retries": c.retry.max_retries, "retry_on_timeout": c.retry.retry_on_timeout},
+            "retry": {
+                "max_retries": c.retry.max_retries,
+                "retry_on_timeout": c.retry.retry_on_timeout,
+                "timeout_increment_on_timeout": c.retry.timeout_increment_on_timeout,
+            },
             "max_workers": c.max_workers,
             "output_dir": c.output_dir,
             "tasks": [
@@ -218,7 +231,7 @@ def create_app() -> FastAPI:
     async def get_config_file(path: str):
         try:
             config = load_config(path)
-            warnings = validate_config(config)
+            warnings = validate_config(config, emit_logs=False)
             return {"success": True, "path": path, "config": config_to_dict(config), "warnings": warnings}
         except Exception as e:
             return JSONResponse({"success": False, "error": str(e)}, status_code=400)
@@ -227,7 +240,7 @@ def create_app() -> FastAPI:
     async def load_config_api(req: ConfigLoadRequest):
         try:
             state.load(req.path)
-            warnings = validate_config(state.config)
+            warnings = validate_config(state.config, emit_logs=False)
             return {
                 "success": True,
                 "tasks": len(state.config.tasks),
@@ -242,7 +255,7 @@ def create_app() -> FastAPI:
         try:
             config = load_config(overrides=req.data)
             path = save_config(config, req.path)
-            warnings = validate_config(config)
+            warnings = validate_config(config, emit_logs=False)
             state.config = config
             state.config_path = str(path)
             return {"success": True, "path": str(path), "warnings": warnings}
@@ -320,6 +333,7 @@ def create_app() -> FastAPI:
     @app.post("/api/runs")
     async def start_run(req: RunRequest):
         from .git_manager import resolve_git_repos
+        from .runner import resolve_run_mode
 
         if state.is_running:
             return JSONResponse({"error": "已有测试在运行中"}, status_code=409)
@@ -385,9 +399,19 @@ def create_app() -> FastAPI:
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=400)
 
+        try:
+            effective_mode = resolve_run_mode(
+                req.mode,
+                has_repo=bool(resolved_repo_paths),
+                commit=req.commit,
+                push=req.push,
+            )
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+
         session = RunSession(
             config_name=state.config_path,
-            mode=req.mode,
+            mode=effective_mode,
             experiment_mode=req.experiment_mode,
             repo_path=", ".join(resolved_repo_paths),
             total_tasks=len(filtered_tasks) * len(filtered_skills),
@@ -405,6 +429,8 @@ def create_app() -> FastAPI:
         return {
             "run_id": session.id,
             "total": session.total_tasks,
+            "mode": effective_mode,
+            "effective_mode": effective_mode,
             "experiment_mode": req.experiment_mode,
             "resolved_repo_paths": resolved_repo_paths,
         }
@@ -540,6 +566,7 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
             effective_repo_paths = [str(path) for path in resolved_repos]
             session.repo_path = ", ".join(effective_repo_paths)
 
+        session.mode = req.mode if not session.mode else session.mode
         runner = TestRunner(
             config,
             repo_path=effective_repo_paths or None,
@@ -552,15 +579,17 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
             data["run_id"] = run_id
             asyncio.run(ws_mgr.broadcast(data))
 
+        runner.events.on("run_started", _broadcast_sync)
         runner.events.on("task_registered", _broadcast_sync)
         runner.events.on("task_started", _broadcast_sync)
         runner.events.on("task_completed", lambda d: (
             _broadcast_sync(d),
             _update_session(session, d),
         ))
+        runner.events.on("run_complete", _broadcast_sync)
 
         results = runner.run(
-            mode=req.mode,
+            mode=session.mode,
             experiment_mode=req.experiment_mode,
             tasks=filtered_tasks,
             skills=filtered_skills,

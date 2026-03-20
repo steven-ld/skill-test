@@ -6,7 +6,7 @@ cli:
   base_args:
     - "--print"
     - "--dangerously-skip-permissions"
-  timeout: 300             # 单个任务超时（秒）
+  timeout: 1000            # 单个任务超时（秒，coding 模式默认至少 1000 秒）
 
 git:
   author_name: "AI Skill Tester"
@@ -15,6 +15,14 @@ git:
   branch_prefix: skill-test
   auto_push: false
   cleanup_on_finish: true
+
+retry:
+  max_retries: 2
+  base_delay: 5
+  max_delay: 60
+  retry_on_timeout: true
+  retry_on_failure: false
+  timeout_increment_on_timeout: 300  # 超时重试时额外增加的秒数（5 分钟）
 
 max_workers: 3             # 并行执行上限
 output_dir: results        # 报告输出目录
@@ -33,7 +41,7 @@ tasks:
       1. 使用 Python
       2. 包含类型标注和文档字符串
       3. 包含单元测试
-    timeout: 180
+    timeout: 1000
 
   - id: task_002
     name: "API 错误处理"
