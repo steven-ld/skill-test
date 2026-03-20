@@ -60,6 +60,9 @@ def _score_repo_match(repo: Path, tasks: list["TaskConfig"]) -> int:
     repo_name = repo.name.lower()
     score = 0
     for task in tasks:
+        for target in task.repo_targets:
+            if target and repo_name == target.lower():
+                score += 8
         haystacks = [task.id, task.name, task.prompt, task.expected_output]
         for text in haystacks:
             if not text:
@@ -131,6 +134,66 @@ def resolve_git_repo(
     raise GitError(
         f"'{root}' 不是 Git 仓库，但检测到多个子仓库：{repo_names}。"
         " 请在工作目录中指定目标模块，或让任务描述包含更明确的模块名。"
+    )
+
+
+def resolve_git_repos(
+    repo_path: str | Path,
+    *,
+    tasks: list["TaskConfig"] | None = None,
+    work_dir: str | Path | None = None,
+    explicit_repo_paths: list[str] | None = None,
+) -> list[Path]:
+    """
+    解析一次任务运行需要使用的一个或多个 Git 仓库。
+    """
+    if explicit_repo_paths:
+        resolved: list[Path] = []
+        for path in explicit_repo_paths:
+            repo = Path(path).resolve()
+            if not is_git_repo(repo):
+                raise GitError(f"显式选择的路径不是 Git 仓库：{repo}")
+            if repo not in resolved:
+                resolved.append(repo)
+        return resolved
+
+    root = Path(repo_path).resolve()
+    tasks = tasks or []
+
+    if not root.exists():
+        raise GitError(f"路径不存在：{root}")
+
+    if is_git_repo(root):
+        return [root]
+
+    repos = discover_git_repos(root)
+    if not repos:
+        raise GitError(f"目录下未发现 Git 仓库：{root}")
+
+    scored = [(repo, _score_repo_match(repo, tasks)) for repo in repos]
+    matched = sorted(repo for repo, score in scored if score > 0)
+    if matched:
+        return matched
+
+    if work_dir:
+        work_path = Path(work_dir).resolve()
+        for candidate in [work_path, *work_path.parents]:
+            if candidate == candidate.parent:
+                break
+            if is_git_repo(candidate):
+                return [candidate.resolve()]
+            if candidate == root:
+                break
+
+    if len(repos) == 1:
+        return repos
+
+    repo_names = ", ".join(repo.name for repo in repos[:8])
+    if len(repos) > 8:
+        repo_names += ", ..."
+    raise GitError(
+        f"'{root}' 不是 Git 仓库，但检测到多个子仓库：{repo_names}。"
+        " 请勾选目标模块，或在任务配置中补充 repo_targets。"
     )
 
 

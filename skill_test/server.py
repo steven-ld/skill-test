@@ -28,7 +28,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
 
-from .config import load_config, build_default_config, validate_config
+from .config import load_config, build_default_config, validate_config, config_to_dict, save_config
 from .log import setup_logging, get_logger
 from .models import AppConfig, RunSession, ReportFormat, SkillConfig
 
@@ -55,7 +55,14 @@ if FASTAPI_AVAILABLE:
     class ConfigLoadRequest(BaseModel):
         path: str
 
+    class ConfigSaveRequest(BaseModel):
+        path: str
+        data: dict
+
     class DiscoverRequest(BaseModel):
+        path: str
+
+    class RepoDiscoverRequest(BaseModel):
         path: str
 
     class SelectedSkillRequest(BaseModel):
@@ -71,6 +78,7 @@ if FASTAPI_AVAILABLE:
         mode: str = "auto"
         experiment_mode: str = "task"
         repo_path: str = ""
+        repo_paths: List[str] = []
         work_dir: str = ""
         commit: bool = False
         push: bool = False
@@ -183,6 +191,7 @@ def create_app() -> FastAPI:
                     "name": t.name,
                     "prompt": t.prompt[:200],
                     "mode": t.mode,
+                    "repo_targets": t.repo_targets,
                 }
                 for t in c.tasks
             ],
@@ -199,6 +208,21 @@ def create_app() -> FastAPI:
             ],
         }
 
+    @app.get("/api/config/files")
+    async def list_config_files(root: str = "."):
+        root_path = Path(root).resolve()
+        files = sorted(root_path.glob("*.y*ml"))
+        return {"files": [str(path) for path in files]}
+
+    @app.get("/api/config/file")
+    async def get_config_file(path: str):
+        try:
+            config = load_config(path)
+            warnings = validate_config(config)
+            return {"success": True, "path": path, "config": config_to_dict(config), "warnings": warnings}
+        except Exception as e:
+            return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+
     @app.post("/api/config/load")
     async def load_config_api(req: ConfigLoadRequest):
         try:
@@ -210,6 +234,18 @@ def create_app() -> FastAPI:
                 "skills": len(state.config.skills),
                 "warnings": warnings,
             }
+        except Exception as e:
+            return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+
+    @app.post("/api/config/save")
+    async def save_config_api(req: ConfigSaveRequest):
+        try:
+            config = load_config(overrides=req.data)
+            path = save_config(config, req.path)
+            warnings = validate_config(config)
+            state.config = config
+            state.config_path = str(path)
+            return {"success": True, "path": str(path), "warnings": warnings}
         except Exception as e:
             return JSONResponse({"success": False, "error": str(e)}, status_code=400)
 
@@ -267,11 +303,23 @@ def create_app() -> FastAPI:
             ],
         }
 
+    @app.post("/api/repos/discover")
+    async def discover_repos(req: RepoDiscoverRequest):
+        from .git_manager import discover_git_repos
+        repos = discover_git_repos(req.path)
+        return {
+            "path": req.path,
+            "repos": [
+                {"name": repo.name, "path": str(repo)}
+                for repo in repos
+            ],
+        }
+
     # ── 执行 API ─────────────────────────────────────────────────────
 
     @app.post("/api/runs")
     async def start_run(req: RunRequest):
-        from .git_manager import resolve_git_repo
+        from .git_manager import resolve_git_repos
 
         if state.is_running:
             return JSONResponse({"error": "已有测试在运行中"}, status_code=409)
@@ -322,16 +370,18 @@ def create_app() -> FastAPI:
                 ),
             )
 
-        resolved_repo_path = req.repo_path
-        if resolved_repo_path:
+        resolved_repo_paths = list(req.repo_paths)
+        if req.repo_path or resolved_repo_paths:
             try:
-                resolved_repo_path = str(
-                    resolve_git_repo(
-                        resolved_repo_path,
+                resolved_repo_paths = [
+                    str(path)
+                    for path in resolve_git_repos(
+                        req.repo_path or resolved_repo_paths[0],
                         tasks=filtered_tasks,
                         work_dir=req.work_dir or None,
+                        explicit_repo_paths=resolved_repo_paths or None,
                     )
-                )
+                ]
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=400)
 
@@ -339,7 +389,7 @@ def create_app() -> FastAPI:
             config_name=state.config_path,
             mode=req.mode,
             experiment_mode=req.experiment_mode,
-            repo_path=resolved_repo_path,
+            repo_path=", ".join(resolved_repo_paths),
             total_tasks=len(filtered_tasks) * len(filtered_skills),
         )
         state.sessions[session.id] = session
@@ -356,7 +406,7 @@ def create_app() -> FastAPI:
             "run_id": session.id,
             "total": session.total_tasks,
             "experiment_mode": req.experiment_mode,
-            "resolved_repo_path": resolved_repo_path,
+            "resolved_repo_paths": resolved_repo_paths,
         }
 
     @app.get("/api/runs")
@@ -427,7 +477,7 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
     """在后台线程中执行测试，通过事件总线推送进度。"""
     from .runner import TestRunner
     from .reporter import save_report
-    from .git_manager import resolve_git_repo
+    from .git_manager import resolve_git_repos
 
     session = state.sessions[run_id]
 
@@ -479,19 +529,20 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
             )
 
         session.total_tasks = len(filtered_tasks) * len(filtered_skills)
-        effective_repo_path = req.repo_path or None
-        if effective_repo_path:
-            resolved_repo = resolve_git_repo(
-                effective_repo_path,
+        effective_repo_paths: list[str] = list(req.repo_paths)
+        if req.repo_path or effective_repo_paths:
+            resolved_repos = resolve_git_repos(
+                req.repo_path or effective_repo_paths[0],
                 tasks=filtered_tasks,
                 work_dir=req.work_dir or None,
+                explicit_repo_paths=effective_repo_paths or None,
             )
-            effective_repo_path = str(resolved_repo)
-            session.repo_path = effective_repo_path
+            effective_repo_paths = [str(path) for path in resolved_repos]
+            session.repo_path = ", ".join(effective_repo_paths)
 
         runner = TestRunner(
             config,
-            repo_path=effective_repo_path,
+            repo_path=effective_repo_paths or None,
             work_dir=req.work_dir or None,
             enable_progress=False,
             enable_history=True,

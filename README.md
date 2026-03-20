@@ -10,6 +10,7 @@
 - `多工具 Skill 扫描`：可扫描项目内 Claude / Cursor / Codex / Gemini Skill，并在前端按工具来源展示、按需勾选引用文件
 - `平台化管理体验`：通过 Web 平台完成配置加载、实验设计、运行监控、交付追踪与结果对比
 - `微服务工作区支持`：`repo_path` 可以是包含多个子仓库的工作区根目录，平台会结合 `work_dir` 和任务文本自动尝试匹配目标子仓库
+- `配置中心`：可直接在平台中编辑 `test_user_count.yaml` 这类 YAML，并回填到主工作台启动实验
 
 ## 快速开始
 
@@ -97,6 +98,7 @@ python -m skill_test report results/report_20260320.json -f markdown -o report.m
 | 字段 | 说明 |
 |------|------|
 | `tasks[].mode` | `coding` 或 `solution`，用于定义默认实验模式 |
+| `tasks[].repo_targets` | 任务涉及的目标模块列表，如 `cloud-member` / `cloud-common` |
 
 Skill 新增关键字段：
 

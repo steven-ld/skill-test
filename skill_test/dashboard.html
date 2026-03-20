@@ -111,6 +111,29 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   flex-wrap:wrap;
 }
 
+.nav-tabs{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-left:auto;
+}
+
+.nav-tab{
+  appearance:none;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.72);
+  color:var(--ink);
+  border-radius:999px;
+  padding:10px 14px;
+  font-weight:600;
+  cursor:pointer;
+}
+
+.nav-tab.active{
+  background:var(--ink);
+  color:#fff;
+}
+
 .pill{
   display:inline-flex;
   align-items:center;
@@ -240,6 +263,9 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   grid-template-columns:1.42fr .98fr;
   gap:20px;
 }
+
+.page-shell{display:none}
+.page-shell.active{display:block}
 
 .stack{
   display:grid;
@@ -486,6 +512,38 @@ button.mode-card{
 
 .selection-summary .row strong{font-size:14px}
 
+.builder-grid{
+  display:grid;
+  grid-template-columns:1.05fr .95fr;
+  gap:20px;
+}
+
+.builder-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+.builder-list{
+  display:grid;
+  gap:12px;
+}
+
+.builder-card{
+  padding:16px;
+  border-radius:18px;
+  border:1px solid rgba(20,32,51,.07);
+  background:var(--surface);
+  display:grid;
+  gap:12px;
+}
+
+.inline-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+
 .progress-shell{
   height:10px;
   border-radius:999px;
@@ -620,9 +678,10 @@ button.mode-card{
   .shell{width:min(100vw - 20px,1440px)}
   .hero-main{padding:24px}
   .hero-main h2{font-size:30px}
-  .hero-grid,.field-grid,.section-grid.two,.mode-grid{grid-template-columns:1fr}
+  .hero-grid,.field-grid,.section-grid.two,.mode-grid,.builder-grid,.inline-grid{grid-template-columns:1fr}
   .topbar,.panel-head,.run-item-top,.status-strip{align-items:flex-start}
   .topbar,.panel-head{flex-direction:column}
+  .nav-tabs{margin-left:0}
 }
 
 @media (prefers-reduced-motion: reduce){
@@ -647,6 +706,10 @@ button.mode-card{
         <p>Skill A/B 实验、Git 交付追踪、跨工具 Skill 目录与引用管理</p>
       </div>
     </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" type="button" data-page-target="workbench" onclick="switchPage('workbench')">Workbench</button>
+      <button class="nav-tab" type="button" data-page-target="configs" onclick="switchPage('configs')">Config Center</button>
+    </div>
     <div class="status-strip">
       <div class="pill">
         <span class="dot" id="ws-dot"></span>
@@ -663,6 +726,7 @@ button.mode-card{
     </div>
   </div>
 
+  <section class="page-shell active" id="page-workbench">
   <section class="hero">
     <div class="hero-main">
       <div class="hero-kicker">A/B Skill Workbench</div>
@@ -713,15 +777,34 @@ button.mode-card{
         <div class="section-grid">
           <div class="field-grid">
             <div class="field">
+              <label>配置文件</label>
+              <select id="cfg-select" name="config_select"></select>
+            </div>
+            <div class="field">
               <label>配置文件路径</label>
               <input type="text" id="cfg-path" name="config_path" autocomplete="off" placeholder="/path/to/skill_test.yaml…">
             </div>
+          </div>
+          <div class="field-grid">
             <div class="field">
-              <label>仓库路径</label>
-              <input type="text" id="run-repo" name="repo_path" autocomplete="off" placeholder="/path/to/repo…">
+              <label>工作区路径</label>
+              <input type="text" id="run-repo" name="repo_path" autocomplete="off" placeholder="/path/to/workspace-or-repo…">
+            </div>
+            <div class="field">
+              <label>工作目录</label>
+              <input type="text" id="run-dir" name="work_dir" autocomplete="off" placeholder="可选工作目录…">
             </div>
           </div>
-          <div class="helper">支持直接输入工作区根目录；如果里面有多个子仓库，平台会结合工作目录和任务文本尝试自动匹配。</div>
+          <div class="helper">支持直接输入工作区根目录；可以自动匹配子仓库，也可以手工勾选多个模块。</div>
+          <div class="field">
+            <label>涉及模块</label>
+            <div class="panel-actions">
+              <button class="btn btn-secondary" type="button" onclick="discoverRepos()">扫描模块</button>
+            </div>
+            <div class="checklist" id="repo-list">
+              <div class="empty">扫描后可勾选多个目标仓库。</div>
+            </div>
+          </div>
 
           <div class="mode-grid">
             <button class="mode-card active" data-mode="coding" type="button" onclick="selectExperimentMode('coding')">
@@ -746,10 +829,7 @@ button.mode-card{
                 <option value="isolated">隔离 (isolated)</option>
               </select>
             </div>
-            <div class="field">
-              <label>工作目录</label>
-              <input type="text" id="run-dir" name="work_dir" autocomplete="off" placeholder="可选工作目录…">
-            </div>
+            <div class="note">涉及多个仓库时，建议保持 `isolated`，这样每个实验组都会获得独立 worktree 与可提交的交付记录。</div>
           </div>
 
           <div class="tag-row">
@@ -865,13 +945,105 @@ button.mode-card{
       </section>
     </div>
   </main>
+  </section>
+
+  <section class="page-shell" id="page-configs">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>配置中心</h3>
+          <p>编辑 YAML 配置文件，并让主页面直接引用。</p>
+        </div>
+        <div class="builder-actions">
+          <button class="btn btn-secondary" type="button" onclick="loadConfigFiles()">刷新文件</button>
+          <button class="btn btn-secondary" type="button" onclick="loadSelectedConfigFile()">加载选中配置</button>
+          <button class="btn btn-primary" type="button" onclick="saveBuilderConfig()">保存配置</button>
+          <button class="btn btn-ghost" type="button" onclick="useBuilderConfig()">回到主页面使用</button>
+        </div>
+      </div>
+
+      <div class="builder-grid">
+        <div class="section-grid">
+          <div class="field-grid">
+            <div class="field">
+              <label>配置文件</label>
+              <select id="builder-config-select" name="builder_config_select"></select>
+            </div>
+            <div class="field">
+              <label>保存路径</label>
+              <input type="text" id="builder-config-path" name="builder_config_path" autocomplete="off" placeholder="/path/to/config.yaml…">
+            </div>
+          </div>
+
+          <div class="inline-grid">
+            <div class="field">
+              <label>CLI 命令</label>
+              <input type="text" id="builder-cli-command" name="builder_cli_command" autocomplete="off" placeholder="claude…">
+            </div>
+            <div class="field">
+              <label>CLI 超时</label>
+              <input type="text" id="builder-cli-timeout" name="builder_cli_timeout" autocomplete="off" placeholder="300…">
+            </div>
+            <div class="field">
+              <label>输出目录</label>
+              <input type="text" id="builder-output-dir" name="builder_output_dir" autocomplete="off" placeholder="results…">
+            </div>
+            <div class="field">
+              <label>最大并发</label>
+              <input type="text" id="builder-max-workers" name="builder_max_workers" autocomplete="off" placeholder="3…">
+            </div>
+            <div class="field">
+              <label>基准分支</label>
+              <input type="text" id="builder-base-branch" name="builder_base_branch" autocomplete="off" placeholder="main…">
+            </div>
+            <div class="field">
+              <label>分支前缀</label>
+              <input type="text" id="builder-branch-prefix" name="builder_branch_prefix" autocomplete="off" placeholder="skill-test…">
+            </div>
+          </div>
+
+          <div class="selection-summary" id="builder-summary">
+            <div class="row"><span>任务</span><strong id="builder-task-count">0</strong></div>
+            <div class="row"><span>Skill</span><strong id="builder-skill-count">0</strong></div>
+            <div class="row"><span>当前文件</span><strong id="builder-current-file">未选择</strong></div>
+          </div>
+        </div>
+
+        <div class="section-grid">
+          <div class="panel" style="padding:18px">
+            <div class="panel-head">
+              <div>
+                <h3>任务</h3>
+                <p>支持 mode 与 repo_targets。</p>
+              </div>
+              <button class="btn btn-secondary" type="button" onclick="addBuilderTask()">新增任务</button>
+            </div>
+            <div class="builder-list" id="builder-task-list"></div>
+          </div>
+
+          <div class="panel" style="padding:18px">
+            <div class="panel-head">
+              <div>
+                <h3>Skills</h3>
+                <p>支持 baseline / file / inline 三种形态。</p>
+              </div>
+              <button class="btn btn-secondary" type="button" onclick="addBuilderSkill()">新增 Skill</button>
+            </div>
+            <div class="builder-list" id="builder-skill-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
 const API = "";
 const state = {
   config: null,
+  configFiles: [],
   discoveredSkills: [],
+  repos: [],
   experimentMode: "coding",
   taskMap: {},
   results: [],
@@ -879,6 +1051,11 @@ const state = {
   completedCount: 0,
   ws: null,
   currentRun: null,
+  builder: {
+    baseConfig: null,
+    tasks: [],
+    skills: [],
+  },
 };
 
 function esc(value) {
@@ -903,6 +1080,347 @@ function tagForStatus(status) {
   if (status === "failed" || status === "timeout") return "failed";
   if (status === "running") return "running";
   return "status";
+}
+
+function switchPage(page) {
+  document.querySelectorAll(".page-shell").forEach((item) => {
+    item.classList.toggle("active", item.id === `page-${page}`);
+  });
+  document.querySelectorAll(".nav-tab").forEach((item) => {
+    item.classList.toggle("active", item.dataset.pageTarget === page);
+  });
+}
+
+function csvToList(value) {
+  return (value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function listToCsv(value) {
+  return (value || []).join(", ");
+}
+
+async function loadConfigFiles(root = ".") {
+  try {
+    const response = await fetch(`${API}/api/config/files?root=${encodeURIComponent(root)}`);
+    const data = await response.json();
+    state.configFiles = data.files || [];
+    renderConfigFileOptions();
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function renderConfigFileOptions() {
+  const workbenchSelect = document.getElementById("cfg-select");
+  const builderSelect = document.getElementById("builder-config-select");
+  const workbenchValue = document.getElementById("cfg-path").value.trim() || workbenchSelect.value;
+  const builderValue = document.getElementById("builder-config-path").value.trim() || builderSelect.value;
+  const options = state.configFiles.length
+    ? state.configFiles.map((file) => `<option value="${esc(file)}">${esc(file)}</option>`).join("")
+    : '<option value="">未发现配置文件</option>';
+  workbenchSelect.innerHTML = options;
+  builderSelect.innerHTML = options;
+  if (state.configFiles.includes(workbenchValue)) workbenchSelect.value = workbenchValue;
+  if (state.configFiles.includes(builderValue)) builderSelect.value = builderValue;
+  if (!document.getElementById("cfg-path").value && workbenchSelect.value) {
+    document.getElementById("cfg-path").value = workbenchSelect.value;
+  }
+  if (!document.getElementById("builder-config-path").value && builderSelect.value) {
+    document.getElementById("builder-config-path").value = builderSelect.value;
+  }
+  workbenchSelect.onchange = () => {
+    document.getElementById("cfg-path").value = workbenchSelect.value;
+  };
+  builderSelect.onchange = () => {
+    document.getElementById("builder-config-path").value = builderSelect.value;
+  };
+}
+
+async function loadSelectedConfigFile() {
+  const path = document.getElementById("builder-config-select").value;
+  if (!path) return;
+  try {
+    const response = await fetch(`${API}/api/config/file?path=${encodeURIComponent(path)}`);
+    const data = await response.json();
+    if (!data.success) {
+      alert(data.error || "配置加载失败");
+      return;
+    }
+    renderBuilderConfig(data.config, path);
+  } catch (error) {
+    alert(`配置加载失败: ${error.message}`);
+  }
+}
+
+function renderBuilderConfig(config, path = "") {
+  const current = config || {};
+  state.builder.baseConfig = JSON.parse(JSON.stringify(current));
+  state.builder.tasks = (current.tasks || []).map((task) => ({
+    id: task.id || "",
+    name: task.name || "",
+    mode: task.mode || "coding",
+    timeout: task.timeout || "",
+    repo_targets: task.repo_targets || [],
+    prompt: task.prompt || "",
+    expected_output: task.expected_output || "",
+  }));
+  state.builder.skills = (current.skills || []).map((skill) => ({
+    type: skill.skill_file ? "file" : (skill.system_prompt ? "inline" : "baseline"),
+    name: skill.name || "",
+    tool: skill.tool || "manual",
+    origin: skill.origin || "",
+    description: skill.description || "",
+    system_prompt: skill.system_prompt || "",
+    skill_file: skill.skill_file || "",
+    ref_files: skill.ref_files || [],
+  }));
+
+  document.getElementById("builder-config-path").value = path || document.getElementById("builder-config-path").value;
+  document.getElementById("builder-cli-command").value = current.cli?.command || "";
+  document.getElementById("builder-cli-timeout").value = current.cli?.timeout || 300;
+  document.getElementById("builder-output-dir").value = current.output_dir || "results";
+  document.getElementById("builder-max-workers").value = current.max_workers || 3;
+  document.getElementById("builder-base-branch").value = current.git?.base_branch || "main";
+  document.getElementById("builder-branch-prefix").value = current.git?.branch_prefix || "skill-test";
+
+  renderBuilderTasks();
+  renderBuilderSkills();
+  updateBuilderSummary();
+}
+
+function updateBuilderSummary() {
+  document.getElementById("builder-task-count").textContent = String(state.builder.tasks.length);
+  document.getElementById("builder-skill-count").textContent = String(state.builder.skills.length);
+  document.getElementById("builder-current-file").textContent = document.getElementById("builder-config-path").value || "未选择";
+}
+
+function addBuilderTask() {
+  state.builder.tasks.push({
+    id: "",
+    name: "",
+    mode: "coding",
+    timeout: "",
+    repo_targets: [],
+    prompt: "",
+    expected_output: "",
+  });
+  renderBuilderTasks();
+  updateBuilderSummary();
+}
+
+function removeBuilderTask(index) {
+  state.builder.tasks.splice(index, 1);
+  renderBuilderTasks();
+  updateBuilderSummary();
+}
+
+function updateBuilderTaskField(index, field, value) {
+  if (!state.builder.tasks[index]) return;
+  state.builder.tasks[index][field] = field === "repo_targets" ? csvToList(value) : value;
+}
+
+function renderBuilderTasks() {
+  const container = document.getElementById("builder-task-list");
+  if (!state.builder.tasks.length) {
+    container.innerHTML = '<div class="empty">还没有任务，点击“新增任务”。</div>';
+    return;
+  }
+  container.innerHTML = state.builder.tasks.map((task, index) => `
+    <div class="builder-card">
+      <div class="builder-actions" style="justify-content:space-between">
+        <strong>任务 ${index + 1}</strong>
+        <button class="btn btn-ghost" type="button" onclick="removeBuilderTask(${index})">删除</button>
+      </div>
+      <div class="inline-grid">
+        <div class="field"><label>ID</label><input type="text" value="${esc(task.id)}" oninput="updateBuilderTaskField(${index}, 'id', this.value)"></div>
+        <div class="field"><label>名称</label><input type="text" value="${esc(task.name)}" oninput="updateBuilderTaskField(${index}, 'name', this.value)"></div>
+        <div class="field"><label>模式</label><select onchange="updateBuilderTaskField(${index}, 'mode', this.value)"><option value="coding" ${task.mode === "coding" ? "selected" : ""}>coding</option><option value="solution" ${task.mode === "solution" ? "selected" : ""}>solution</option></select></div>
+        <div class="field"><label>超时</label><input type="text" value="${esc(task.timeout)}" oninput="updateBuilderTaskField(${index}, 'timeout', this.value)"></div>
+      </div>
+      <div class="field"><label>涉及模块</label><input type="text" value="${esc(listToCsv(task.repo_targets))}" placeholder="cloud-member, cloud-common…" oninput="updateBuilderTaskField(${index}, 'repo_targets', this.value)"></div>
+      <div class="field"><label>Prompt</label><textarea oninput="updateBuilderTaskField(${index}, 'prompt', this.value)">${esc(task.prompt)}</textarea></div>
+      <div class="field"><label>Expected Output</label><textarea oninput="updateBuilderTaskField(${index}, 'expected_output', this.value)">${esc(task.expected_output)}</textarea></div>
+    </div>
+  `).join("");
+}
+
+function addBuilderSkill() {
+  state.builder.skills.push({
+    type: "baseline",
+    name: "",
+    tool: "manual",
+    origin: "",
+    description: "",
+    system_prompt: "",
+    skill_file: "",
+    ref_files: [],
+  });
+  renderBuilderSkills();
+  updateBuilderSummary();
+}
+
+function removeBuilderSkill(index) {
+  state.builder.skills.splice(index, 1);
+  renderBuilderSkills();
+  updateBuilderSummary();
+}
+
+function updateBuilderSkillField(index, field, value) {
+  if (!state.builder.skills[index]) return;
+  state.builder.skills[index][field] = field === "ref_files" ? csvToList(value) : value;
+}
+
+function renderBuilderSkills() {
+  const container = document.getElementById("builder-skill-list");
+  if (!state.builder.skills.length) {
+    container.innerHTML = '<div class="empty">还没有 Skill，点击“新增 Skill”。</div>';
+    return;
+  }
+  container.innerHTML = state.builder.skills.map((skill, index) => `
+    <div class="builder-card">
+      <div class="builder-actions" style="justify-content:space-between">
+        <strong>Skill ${index + 1}</strong>
+        <button class="btn btn-ghost" type="button" onclick="removeBuilderSkill(${index})">删除</button>
+      </div>
+      <div class="inline-grid">
+        <div class="field"><label>名称</label><input type="text" value="${esc(skill.name)}" oninput="updateBuilderSkillField(${index}, 'name', this.value)"></div>
+        <div class="field"><label>类型</label><select onchange="updateBuilderSkillField(${index}, 'type', this.value)"><option value="baseline" ${skill.type === "baseline" ? "selected" : ""}>baseline</option><option value="inline" ${skill.type === "inline" ? "selected" : ""}>inline</option><option value="file" ${skill.type === "file" ? "selected" : ""}>file</option></select></div>
+        <div class="field"><label>工具</label><input type="text" value="${esc(skill.tool)}" oninput="updateBuilderSkillField(${index}, 'tool', this.value)"></div>
+        <div class="field"><label>Origin</label><input type="text" value="${esc(skill.origin)}" oninput="updateBuilderSkillField(${index}, 'origin', this.value)"></div>
+      </div>
+      <div class="field"><label>Description</label><input type="text" value="${esc(skill.description)}" oninput="updateBuilderSkillField(${index}, 'description', this.value)"></div>
+      <div class="field"><label>Skill File</label><input type="text" value="${esc(skill.skill_file)}" oninput="updateBuilderSkillField(${index}, 'skill_file', this.value)"></div>
+      <div class="field"><label>Reference Files</label><input type="text" value="${esc(listToCsv(skill.ref_files))}" placeholder="references/a.md, references/b.md…" oninput="updateBuilderSkillField(${index}, 'ref_files', this.value)"></div>
+      <div class="field"><label>System Prompt</label><textarea oninput="updateBuilderSkillField(${index}, 'system_prompt', this.value)">${esc(skill.system_prompt)}</textarea></div>
+    </div>
+  `).join("");
+}
+
+function collectBuilderPayload() {
+  const base = state.builder.baseConfig || {};
+  return {
+    cli: {
+      command: document.getElementById("builder-cli-command").value.trim() || base.cli?.command || "claude",
+      base_args: Array.isArray(base.cli?.base_args) ? base.cli.base_args : ["--print", "--dangerously-skip-permissions"],
+      timeout: Number(document.getElementById("builder-cli-timeout").value || base.cli?.timeout || 300),
+    },
+    git: {
+      author_name: base.git?.author_name || "AI Skill Tester",
+      author_email: base.git?.author_email || "skill-test@local",
+      base_branch: document.getElementById("builder-base-branch").value.trim() || "main",
+      branch_prefix: document.getElementById("builder-branch-prefix").value.trim() || "skill-test",
+      auto_push: base.git?.auto_push ?? false,
+      cleanup_on_finish: base.git?.cleanup_on_finish ?? true,
+    },
+    retry: {
+      max_retries: base.retry?.max_retries ?? 2,
+      base_delay: base.retry?.base_delay ?? 5.0,
+      max_delay: base.retry?.max_delay ?? 60.0,
+      retry_on_timeout: base.retry?.retry_on_timeout ?? true,
+      retry_on_failure: base.retry?.retry_on_failure ?? false,
+    },
+    max_workers: Number(document.getElementById("builder-max-workers").value || 3),
+    output_dir: document.getElementById("builder-output-dir").value.trim() || base.output_dir || "results",
+    report_formats: base.report_formats || ["text", "json"],
+    discover_skills: base.discover_skills ?? false,
+    discover_path: base.discover_path || "",
+    skill_groups: base.skill_groups || [],
+    tasks: state.builder.tasks.map((task) => ({
+      id: task.id,
+      name: task.name,
+      mode: task.mode || "coding",
+      prompt: task.prompt,
+      expected_output: task.expected_output || "",
+      timeout: task.timeout ? Number(task.timeout) : null,
+      repo_targets: task.repo_targets || [],
+    })),
+    skills: state.builder.skills.map((skill) => {
+      const item = {
+        name: skill.name,
+        tool: skill.tool || "manual",
+        origin: skill.origin || "",
+        description: skill.description || "",
+      };
+      if (skill.type === "inline") item.system_prompt = skill.system_prompt || "";
+      if (skill.type === "file") {
+        item.skill_file = skill.skill_file || "";
+        item.ref_files = skill.ref_files || [];
+      }
+      return item;
+    }),
+  };
+}
+
+async function saveBuilderConfig() {
+  const path = document.getElementById("builder-config-path").value.trim();
+  if (!path) {
+    alert("请先填写保存路径");
+    return;
+  }
+  const response = await fetch(`${API}/api/config/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, data: collectBuilderPayload() }),
+  });
+  const data = await response.json();
+  if (!data.success) {
+    alert(data.error || "保存失败");
+    return;
+  }
+  await loadConfigFiles();
+  document.getElementById("cfg-path").value = data.path;
+  document.getElementById("builder-config-path").value = data.path;
+  document.getElementById("cfg-select").value = data.path;
+  document.getElementById("builder-config-select").value = data.path;
+  document.getElementById("builder-current-file").textContent = data.path;
+  alert(`已保存: ${data.path}`);
+}
+
+async function useBuilderConfig() {
+  const path = document.getElementById("builder-config-path").value.trim();
+  if (!path) {
+    alert("请先保存或加载一个配置文件");
+    return;
+  }
+  document.getElementById("cfg-path").value = path;
+  switchPage("workbench");
+  await loadConfig();
+}
+
+async function discoverRepos() {
+  const path = document.getElementById("run-repo").value.trim();
+  if (!path) {
+    alert("请先输入工作区路径");
+    return;
+  }
+  const response = await fetch(`${API}/api/repos/discover`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const data = await response.json();
+  state.repos = data.repos || [];
+  renderRepoList();
+}
+
+function renderRepoList() {
+  const container = document.getElementById("repo-list");
+  if (!state.repos.length) {
+    container.innerHTML = '<div class="empty">当前路径下未发现子仓库，将在运行时按任务文本自动解析。</div>';
+    return;
+  }
+  container.innerHTML = renderTasks(state.repos.map((repo) => `
+    <label class="check-item">
+      <input type="checkbox" data-role="repo" name="repo_paths" value="${esc(repo.path)}">
+      <div class="check-copy">
+        <strong>${esc(repo.name)}</strong>
+        <p class="mono">${esc(repo.path)}</p>
+      </div>
+    </label>
+  `));
 }
 
 function selectExperimentMode(mode) {
@@ -1034,7 +1552,7 @@ function renderConfigTaskList(tasks) {
     <label class="check-item">
       <input type="checkbox" data-role="task" name="task_ids" value="${esc(task.id)}" checked>
       <div class="check-copy">
-        <strong>${esc(task.name)} <span class="tag mode">${esc(task.mode || "coding")}</span></strong>
+        <strong>${esc(task.name)} <span class="tag mode">${esc(task.mode || "coding")}</span>${(task.repo_targets || []).map((repo) => ` <span class="tag tool">${esc(repo)}</span>`).join("")}</strong>
         <p>${esc(task.prompt || "")}</p>
       </div>
     </label>
@@ -1344,7 +1862,7 @@ async function loadDashboardStats() {
 }
 
 async function loadConfig() {
-  const path = document.getElementById("cfg-path").value.trim();
+  const path = document.getElementById("cfg-path").value.trim() || document.getElementById("cfg-select").value;
   if (!path) {
     alert("请先输入配置文件路径");
     return;
@@ -1360,6 +1878,7 @@ async function loadConfig() {
     alert(data.error || "配置加载失败");
     return;
   }
+  document.getElementById("cfg-path").value = path;
 
   const configResponse = await fetch(`${API}/api/config`);
   state.config = await configResponse.json();
@@ -1494,6 +2013,7 @@ async function startRun() {
     mode: document.getElementById("run-mode").value,
     experiment_mode: state.experimentMode,
     repo_path: document.getElementById("run-repo").value.trim(),
+    repo_paths: Array.from(document.querySelectorAll('input[data-role="repo"]:checked')).map((input) => input.value),
     work_dir: document.getElementById("run-dir").value.trim(),
     commit: document.getElementById("enable-commit").checked,
     push: document.getElementById("enable-push").checked,
@@ -1521,8 +2041,8 @@ async function startRun() {
     }
     state.currentRun = data.run_id;
     document.getElementById("run-state").textContent = "准备中";
-    const resolvedRepo = data.resolved_repo_path ? `，目标仓库 ${data.resolved_repo_path}` : "";
-    document.getElementById("live-text").textContent = `实验已提交，预计执行 ${data.total || 0} 个单元${resolvedRepo}`;
+    const resolvedRepos = (data.resolved_repo_paths || []).length ? `，目标仓库 ${(data.resolved_repo_paths || []).join(" / ")}` : "";
+    document.getElementById("live-text").textContent = `实验已提交，预计执行 ${data.total || 0} 个单元${resolvedRepos}`;
   } catch (error) {
     alert(`启动失败: ${error.message}`);
     button.disabled = false;
@@ -1533,6 +2053,15 @@ selectExperimentMode("coding");
 connectWS();
 loadDashboardStats();
 loadHistory();
+loadConfigFiles();
+renderBuilderConfig({
+  cli: {command: "claude", timeout: 300},
+  git: {base_branch: "main", branch_prefix: "skill-test"},
+  output_dir: "results",
+  max_workers: 3,
+  tasks: [],
+  skills: [],
+});
 </script>
 </body>
 </html>

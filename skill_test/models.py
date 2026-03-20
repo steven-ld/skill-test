@@ -61,6 +61,7 @@ class TaskConfig:
     expected_output: str = ""
     timeout: Optional[int] = None  # 覆盖全局超时
     mode: str = ExperimentMode.CODING.value
+    repo_targets: list[str] = field(default_factory=list)
 
 
 @dataclass

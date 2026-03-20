@@ -96,6 +96,7 @@ def _parse_tasks(raw_list: list[dict]) -> list[TaskConfig]:
             expected_output=item.get("expected_output", ""),
             timeout=item.get("timeout"),
             mode=item.get("mode", ExperimentMode.CODING.value),
+            repo_targets=item.get("repo_targets", []),
         ))
     return tasks
 
@@ -170,6 +171,8 @@ def validate_config(config: AppConfig) -> list[str]:
             warnings.append(f"任务 '{task.id}' 超时过短: {task.timeout}s")
         if task.mode not in {ExperimentMode.CODING.value, ExperimentMode.SOLUTION.value}:
             warnings.append(f"任务 '{task.id}' 的 mode 非法: {task.mode}")
+        if not isinstance(task.repo_targets, list):
+            warnings.append(f"任务 '{task.id}' 的 repo_targets 必须是列表")
 
     for skill in config.skills:
         if skill.skill_file and not Path(skill.skill_file).exists():
@@ -251,6 +254,7 @@ def build_default_config() -> AppConfig:
                     "3. 包含单元测试"
                 ),
                 mode=ExperimentMode.CODING.value,
+                repo_targets=[],
             ),
         ],
         skills=[
@@ -264,3 +268,74 @@ def build_default_config() -> AppConfig:
             ),
         ],
     )
+
+
+def config_to_dict(config: AppConfig) -> dict:
+    data = {
+        "cli": {
+            "command": config.cli.command,
+            "base_args": list(config.cli.base_args),
+            "timeout": config.cli.timeout,
+        },
+        "git": {
+            "author_name": config.git.author_name,
+            "author_email": config.git.author_email,
+            "base_branch": config.git.base_branch,
+            "branch_prefix": config.git.branch_prefix,
+            "auto_push": config.git.auto_push,
+            "cleanup_on_finish": config.git.cleanup_on_finish,
+        },
+        "retry": {
+            "max_retries": config.retry.max_retries,
+            "base_delay": config.retry.base_delay,
+            "max_delay": config.retry.max_delay,
+            "retry_on_timeout": config.retry.retry_on_timeout,
+            "retry_on_failure": config.retry.retry_on_failure,
+        },
+        "max_workers": config.max_workers,
+        "output_dir": config.output_dir,
+        "report_formats": [fmt.value for fmt in config.report_formats],
+        "discover_skills": config.discover_skills,
+        "discover_path": config.discover_path,
+        "tasks": [
+            {
+                "id": task.id,
+                "name": task.name,
+                "mode": task.mode,
+                "prompt": task.prompt,
+                "expected_output": task.expected_output,
+                "timeout": task.timeout,
+                "repo_targets": task.repo_targets,
+            }
+            for task in config.tasks
+        ],
+        "skills": [
+            {
+                "name": skill.name,
+                "system_prompt": skill.system_prompt,
+                "skill_file": skill.skill_file,
+                "ref_files": list(skill.ref_files),
+                "tool": skill.tool,
+                "origin": skill.origin,
+                "description": skill.description,
+            }
+            for skill in config.skills
+        ],
+    }
+    return data
+
+
+def save_config(config: AppConfig, output_path: str | Path) -> Path:
+    if not _YAML_AVAILABLE:
+        raise ConfigError("需要安装 PyYAML：pip install pyyaml")
+
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(  # type: ignore[name-defined]
+            config_to_dict(config),
+            f,
+            allow_unicode=True,
+            sort_keys=False,
+        )
+    return path

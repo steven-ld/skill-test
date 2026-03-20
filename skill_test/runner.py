@@ -10,8 +10,11 @@
 
 from __future__ import annotations
 
+import os
 import queue
 import re
+import shutil
+import tempfile
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -172,14 +175,20 @@ class TestRunner:
         self,
         config: AppConfig,
         *,
-        repo_path: str | Path | None = None,
+        repo_path: str | Path | list[str] | list[Path] | None = None,
         work_dir: str | Path | None = None,
         enable_progress: bool = True,
         enable_history: bool = True,
     ):
         self.config = config
         self.executor = ClaudeExecutor(config.cli)
-        self.repo_path = Path(repo_path) if repo_path else None
+        if repo_path and isinstance(repo_path, (list, tuple)):
+            self.repo_paths = [Path(path) for path in repo_path]
+        elif repo_path:
+            self.repo_paths = [Path(repo_path)]
+        else:
+            self.repo_paths = []
+        self.repo_path = self.repo_paths[0] if self.repo_paths else None
         self.work_dir = str(work_dir) if work_dir else None
         self.enable_progress = enable_progress and RICH_AVAILABLE
         self.enable_history = enable_history
@@ -187,11 +196,22 @@ class TestRunner:
         self._git: Optional[GitClient] = None
         self._wt_mgr: Optional[WorktreeManager] = None
         self._commit_mgr: Optional[CommitManager] = None
+        self._git_clients: dict[str, GitClient] = {}
+        self._wt_mgrs: dict[str, WorktreeManager] = {}
+        self._commit_mgrs: dict[str, CommitManager] = {}
+
+        for repo in self.repo_paths:
+            git = GitClient(repo)
+            key = str(repo.resolve())
+            self._git_clients[key] = git
+            self._wt_mgrs[key] = WorktreeManager(git, config.git)
+            self._commit_mgrs[key] = CommitManager(git, config.git)
 
         if self.repo_path:
-            self._git = GitClient(self.repo_path)
-            self._wt_mgr = WorktreeManager(self._git, config.git)
-            self._commit_mgr = CommitManager(self._git, config.git)
+            primary_key = str(self.repo_path.resolve())
+            self._git = self._git_clients[primary_key]
+            self._wt_mgr = self._wt_mgrs[primary_key]
+            self._commit_mgr = self._commit_mgrs[primary_key]
 
         self.events = EventBus()
         self._dashboard: Optional[ProgressDashboard] = None
@@ -236,19 +256,130 @@ class TestRunner:
             "result": result.to_dict(),
         })
 
-    def _analyze_diff(self, result: TaskResult, cwd: Path) -> None:
+    def _analyze_diff(self, result: TaskResult, cwd: Path, *, repo: Path | None = None) -> None:
         """为 TaskResult 添加详细变更分析。"""
-        if not self._git:
+        target_repo = repo or self.repo_path
+        if not target_repo:
+            return
+        git = self._git_clients.get(str(target_repo.resolve()))
+        if not git:
             return
         try:
             from .diff_analyzer import analyze_changes
-            summary = analyze_changes(self._git, cwd=cwd)
+            summary = analyze_changes(git, cwd=cwd)
             result.change_summary = summary.to_dict()
             result.files_changed = [
                 f"{c.status[0].upper()} {c.path}" for c in summary.changes
             ]
         except Exception as e:
             log.warning("变更分析失败: %s", e)
+
+    def _collect_repo_summary(self, repo: Path, cwd: Path) -> dict | None:
+        git = self._git_clients.get(str(repo.resolve()))
+        if not git:
+            return None
+        try:
+            from .diff_analyzer import analyze_changes
+            return analyze_changes(git, cwd=cwd).to_dict()
+        except Exception as e:
+            log.warning("多仓库变更分析失败 [%s]: %s", repo, e)
+            return None
+
+    def _merge_repo_summaries(self, repo_summaries: list[dict]) -> tuple[dict | None, list[str]]:
+        if not repo_summaries:
+            return None, []
+
+        merged = {
+            "files_added": 0,
+            "files_modified": 0,
+            "files_deleted": 0,
+            "files_renamed": 0,
+            "total_files": 0,
+            "total_lines_added": 0,
+            "total_lines_deleted": 0,
+            "net_lines": 0,
+            "changes": [],
+        }
+        files_changed: list[str] = []
+
+        for item in repo_summaries:
+            repo_name = Path(item["repo"]).name
+            summary = item.get("change_summary") or {}
+            merged["files_added"] += summary.get("files_added", 0)
+            merged["files_modified"] += summary.get("files_modified", 0)
+            merged["files_deleted"] += summary.get("files_deleted", 0)
+            merged["files_renamed"] += summary.get("files_renamed", 0)
+            merged["total_files"] += summary.get("total_files", 0)
+            merged["total_lines_added"] += summary.get("total_lines_added", 0)
+            merged["total_lines_deleted"] += summary.get("total_lines_deleted", 0)
+            merged["net_lines"] += summary.get("net_lines", 0)
+            for change in summary.get("changes", []):
+                repo_change = dict(change)
+                repo_change["path"] = f"{repo_name}/{change.get('path', '')}"
+                merged["changes"].append(repo_change)
+                files_changed.append(f"{change.get('status', 'M')[:1].upper()} {repo_name}/{change.get('path', '')}")
+
+        return merged, files_changed
+
+    def _select_task_repos(self, task: TaskConfig) -> list[Path]:
+        if len(self.repo_paths) <= 1:
+            return list(self.repo_paths)
+
+        target_names = {target.strip().lower() for target in task.repo_targets if target.strip()}
+        if target_names:
+            selected = [repo for repo in self.repo_paths if repo.name.lower() in target_names]
+            if selected:
+                return selected
+
+        haystack = " ".join(
+            part for part in [task.id, task.name, task.prompt, task.expected_output] if part
+        ).lower()
+        matched = [repo for repo in self.repo_paths if repo.name.lower() in haystack]
+        if matched:
+            return matched
+
+        normalized_haystack = haystack.replace("-", "").replace("_", "")
+        normalized = [
+            repo for repo in self.repo_paths
+            if repo.name.lower().replace("-", "").replace("_", "") in normalized_haystack
+        ]
+        return normalized or list(self.repo_paths)
+
+    def _prepare_multi_repo_workspace(
+        self,
+        repos: list[Path],
+        task: TaskConfig,
+        skill: SkillConfig,
+    ) -> tuple[Path, dict[str, WorktreeInfo]]:
+        workspace_root = Path(tempfile.mkdtemp(prefix=f"skill_test_{_slug(task.id)}_{_slug(skill.name)}_"))
+        repo_worktrees: dict[str, WorktreeInfo] = {}
+        common_root = None
+        try:
+            common_root = Path(os.path.commonpath([str(repo.parent) for repo in repos]))
+        except ValueError:
+            common_root = None
+
+        if common_root and common_root.exists():
+            selected_names = {repo.name for repo in repos}
+            for entry in common_root.iterdir():
+                if entry.name in selected_names:
+                    continue
+                target = workspace_root / entry.name
+                try:
+                    target.symlink_to(entry, target_is_directory=entry.is_dir())
+                except Exception:
+                    continue
+
+        for repo in repos:
+            repo_key = str(repo.resolve())
+            wt_mgr = self._wt_mgrs[repo_key]
+            label = f"{task.id}-{skill.name}-{repo.name}"
+            repo_worktrees[repo_key] = wt_mgr.create(
+                label,
+                worktree_dir=workspace_root / repo.name,
+            )
+
+        return workspace_root, repo_worktrees
 
     def _resolve_skills(self) -> list[SkillConfig]:
         skills = list(self.config.skills)
@@ -345,52 +476,121 @@ class TestRunner:
         push=False,
         max_workers=None,
     ) -> list[TaskResult]:
-        if not self._wt_mgr or not self._git:
+        if not self.repo_paths:
             raise RuntimeError("隔离模式需要提供 repo_path")
         plan = ExecutionPlan(tasks or self.config.tasks, skills or self._resolve_skills())
         workers = max_workers or self.config.max_workers
         log.info("隔离模式 | %s | workers=%d", plan, workers)
         results: list[TaskResult] = []
         worktrees: list[WorktreeInfo] = []
+        workspace_roots: list[Path] = []
         ctx = self._create_dashboard(plan) if self.enable_progress else _Null()
         with ctx:
             self._register_plan(plan, experiment_mode)
             try:
-                wt_map: dict[tuple[str, str], WorktreeInfo] = {}
+                wt_map: dict[tuple[str, str], object] = {}
                 for task, skill in plan.items():
-                    label = f"{task.id}-{skill.name}"
-                    wt = self._wt_mgr.create(label)
-                    wt_map[(task.id, skill.name)] = wt
-                    worktrees.append(wt)
+                    task_repos = self._select_task_repos(task)
+                    if len(task_repos) == 1:
+                        repo_key = str(task_repos[0].resolve())
+                        label = f"{task.id}-{skill.name}"
+                        wt = self._wt_mgrs[repo_key].create(label)
+                        wt_map[(task.id, skill.name)] = wt
+                        worktrees.append(wt)
+                    else:
+                        workspace_root, repo_worktrees = self._prepare_multi_repo_workspace(task_repos, task, skill)
+                        wt_map[(task.id, skill.name)] = {
+                            "workspace_root": workspace_root,
+                            "worktrees": repo_worktrees,
+                        }
+                        workspace_roots.append(workspace_root)
+                        worktrees.extend(repo_worktrees.values())
 
                 def _do(task, skill):
                     self._emit_started(task, skill, experiment_mode)
-                    wt = wt_map[(task.id, skill.name)]
+                    wt_info = wt_map[(task.id, skill.name)]
+
+                    if isinstance(wt_info, WorktreeInfo):
+                        repo_key = str(Path(wt_info.repo).resolve())
+                        repo_path = Path(repo_key)
+                        result = _run_one(
+                            self.executor,
+                            task,
+                            skill,
+                            wt_info.path,
+                            experiment_mode,
+                            self.config.retry,
+                        )
+                        result.worktree_branch = wt_info.branch
+                        self._analyze_diff(result, wt_info.path, repo=repo_path)
+                        if commit and result.success and result.files_changed:
+                            try:
+                                commit_hash = self._commit_mgrs[repo_key].commit(
+                                    wt_info,
+                                    f"skill-test: {task.name} [{skill.name}]",
+                                )
+                                result.metadata["commit_hash"] = commit_hash
+                                result.metadata["committed"] = bool(commit_hash)
+                                if push:
+                                    self._commit_mgrs[repo_key].push(wt_info)
+                                    result.metadata["pushed"] = True
+                            except Exception as e:
+                                result.metadata["commit_error"] = str(e)
+                        elif commit:
+                            result.metadata["committed"] = False
+                        return result
+
+                    workspace_root = wt_info["workspace_root"]
+                    repo_worktrees = wt_info["worktrees"]
                     result = _run_one(
                         self.executor,
                         task,
                         skill,
-                        wt.path,
+                        workspace_root,
                         experiment_mode,
                         self.config.retry,
                     )
-                    result.worktree_branch = wt.branch
-                    self._analyze_diff(result, wt.path)
-                    if commit and result.success and result.files_changed:
-                        try:
-                            commit_hash = self._commit_mgr.commit(
-                                wt,
-                                f"skill-test: {task.name} [{skill.name}]",
-                            )  # type: ignore
-                            result.metadata["commit_hash"] = commit_hash
-                            result.metadata["committed"] = bool(commit_hash)
-                            if push:
-                                self._commit_mgr.push(wt)  # type: ignore
-                                result.metadata["pushed"] = True
-                        except Exception as e:
-                            result.metadata["commit_error"] = str(e)
-                    elif commit:
-                        result.metadata["committed"] = False
+
+                    repo_summaries: list[dict] = []
+                    commit_hashes: list[str] = []
+                    pushed_any = False
+                    branches: list[str] = []
+
+                    for repo_key, repo_wt in repo_worktrees.items():
+                        repo_path = Path(repo_key)
+                        branches.append(repo_wt.branch)
+                        summary = self._collect_repo_summary(repo_path, repo_wt.path)
+                        repo_record = {
+                            "repo": repo_key,
+                            "branch": repo_wt.branch,
+                            "change_summary": summary,
+                        }
+                        if commit and result.success and summary and summary.get("total_files", 0) > 0:
+                            try:
+                                commit_hash = self._commit_mgrs[repo_key].commit(
+                                    repo_wt,
+                                    f"skill-test: {task.name} [{skill.name}]",
+                                )
+                                repo_record["commit_hash"] = commit_hash
+                                if commit_hash:
+                                    commit_hashes.append(commit_hash)
+                                if push and commit_hash:
+                                    self._commit_mgrs[repo_key].push(repo_wt)
+                                    repo_record["pushed"] = True
+                                    pushed_any = True
+                            except Exception as e:
+                                repo_record["commit_error"] = str(e)
+                        repo_summaries.append(repo_record)
+
+                    merged_summary, files_changed = self._merge_repo_summaries(repo_summaries)
+                    result.worktree_branch = ", ".join(branches)
+                    result.change_summary = merged_summary
+                    result.files_changed = files_changed
+                    result.metadata["repo_changes"] = repo_summaries
+                    result.metadata["commit_hashes"] = commit_hashes
+                    result.metadata["commit_hash"] = ", ".join(hash_[:8] for hash_ in commit_hashes)
+                    result.metadata["committed"] = bool(commit_hashes)
+                    result.metadata["pushed"] = pushed_any
                     return result
 
                 with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -415,9 +615,12 @@ class TestRunner:
                 if self.config.git.cleanup_on_finish:
                     for wt in worktrees:
                         try:
-                            self._wt_mgr.remove(wt)  # type: ignore
+                            repo_key = str(Path(wt.repo).resolve())
+                            self._wt_mgrs[repo_key].remove(wt)
                         except Exception as e:
                             log.warning("清理失败: %s", e)
+                    for workspace_root in workspace_roots:
+                        shutil.rmtree(workspace_root, ignore_errors=True)
         return results
 
     # ── 统一入口 ─────────────────────────────────────────────────────────
@@ -439,7 +642,7 @@ class TestRunner:
             config_name=getattr(self.config, '_config_name', ''),
             mode=mode,
             experiment_mode=experiment_mode,
-            repo_path=str(self.repo_path or ''),
+            repo_path=", ".join(str(path) for path in self.repo_paths),
             total_tasks=len(tasks or self.config.tasks) * len(skills or self.config.skills),
         )
         self.events.emit("run_started", {
