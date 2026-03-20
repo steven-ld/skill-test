@@ -9,12 +9,15 @@
 - `Git 交付记录优先`：测试结果可绑定 worktree、提交 hash 和推送状态，交付以 Git 记录为准
 - `多工具 Skill 扫描`：可扫描项目内 Claude / Cursor / Codex / Gemini Skill，并在前端按工具来源展示、按需勾选引用文件
 - `平台化管理体验`：通过 Web 平台完成配置加载、实验设计、运行监控、交付追踪与结果对比
+- `微服务工作区支持`：`repo_path` 可以是包含多个子仓库的工作区根目录，平台会结合 `work_dir` 和任务文本自动尝试匹配目标子仓库
 
 ## 快速开始
 
 ```bash
 # 安装依赖
-pip install -r requirements.txt
+/opt/homebrew/bin/python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 
 # 生成默认配置文件
 python -m skill_test init

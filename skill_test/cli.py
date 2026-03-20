@@ -45,6 +45,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     from .reporter import save_report, print_report
     from .runner import TestRunner
     from .comparator import ComparisonReport
+    from .git_manager import resolve_git_repo
 
     log = get_logger("cli")
     config = load_config(args.config) if args.config else build_default_config()
@@ -61,9 +62,19 @@ def cmd_run(args: argparse.Namespace) -> None:
             log.error("Skill '%s' 不存在", args.skill)
             sys.exit(1)
 
+    repo_path = args.repo
+    if repo_path:
+        repo_path = str(
+            resolve_git_repo(
+                repo_path,
+                tasks=config.tasks,
+                work_dir=args.dir,
+            )
+        )
+
     runner = TestRunner(
         config,
-        repo_path=args.repo,
+        repo_path=repo_path,
         work_dir=args.dir,
         enable_progress=not args.no_progress,
         enable_history=not args.no_history,

@@ -271,6 +271,8 @@ def create_app() -> FastAPI:
 
     @app.post("/api/runs")
     async def start_run(req: RunRequest):
+        from .git_manager import resolve_git_repo
+
         if state.is_running:
             return JSONResponse({"error": "已有测试在运行中"}, status_code=409)
 
@@ -320,11 +322,24 @@ def create_app() -> FastAPI:
                 ),
             )
 
+        resolved_repo_path = req.repo_path
+        if resolved_repo_path:
+            try:
+                resolved_repo_path = str(
+                    resolve_git_repo(
+                        resolved_repo_path,
+                        tasks=filtered_tasks,
+                        work_dir=req.work_dir or None,
+                    )
+                )
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=400)
+
         session = RunSession(
             config_name=state.config_path,
             mode=req.mode,
             experiment_mode=req.experiment_mode,
-            repo_path=req.repo_path,
+            repo_path=resolved_repo_path,
             total_tasks=len(filtered_tasks) * len(filtered_skills),
         )
         state.sessions[session.id] = session
@@ -341,6 +356,7 @@ def create_app() -> FastAPI:
             "run_id": session.id,
             "total": session.total_tasks,
             "experiment_mode": req.experiment_mode,
+            "resolved_repo_path": resolved_repo_path,
         }
 
     @app.get("/api/runs")
@@ -411,6 +427,7 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
     """在后台线程中执行测试，通过事件总线推送进度。"""
     from .runner import TestRunner
     from .reporter import save_report
+    from .git_manager import resolve_git_repo
 
     session = state.sessions[run_id]
 
@@ -462,10 +479,19 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
             )
 
         session.total_tasks = len(filtered_tasks) * len(filtered_skills)
+        effective_repo_path = req.repo_path or None
+        if effective_repo_path:
+            resolved_repo = resolve_git_repo(
+                effective_repo_path,
+                tasks=filtered_tasks,
+                work_dir=req.work_dir or None,
+            )
+            effective_repo_path = str(resolved_repo)
+            session.repo_path = effective_repo_path
 
         runner = TestRunner(
             config,
-            repo_path=req.repo_path or None,
+            repo_path=effective_repo_path,
             work_dir=req.work_dir or None,
             enable_progress=False,
             enable_history=True,

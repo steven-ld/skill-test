@@ -11,13 +11,127 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Generator
+from typing import Generator, TYPE_CHECKING
 
 from .exceptions import GitError
 from .log import get_logger
 from .models import GitConfig, WorktreeInfo
 
+if TYPE_CHECKING:
+    from .models import TaskConfig
+
 log = get_logger("git")
+
+
+def is_git_repo(path: str | Path) -> bool:
+    repo = Path(path).resolve()
+    return (repo / ".git").exists() or repo.name.endswith(".git")
+
+
+def discover_git_repos(root: str | Path, *, max_depth: int = 3) -> list[Path]:
+    """
+    扫描工作区下的 Git 仓库。
+
+    默认只看较浅层目录，适配微服务根目录场景。
+    """
+    root_path = Path(root).resolve()
+    if not root_path.exists() or not root_path.is_dir():
+        return []
+
+    if is_git_repo(root_path):
+        return [root_path]
+
+    repos: list[Path] = []
+    for current, dirs, _files in __import__("os").walk(root_path):
+        current_path = Path(current)
+        depth = len(current_path.relative_to(root_path).parts)
+        if depth > max_depth:
+            dirs[:] = []
+            continue
+
+        if ".git" in dirs:
+            repos.append(current_path)
+            dirs[:] = []
+
+    return sorted(repos)
+
+
+def _score_repo_match(repo: Path, tasks: list["TaskConfig"]) -> int:
+    repo_name = repo.name.lower()
+    score = 0
+    for task in tasks:
+        haystacks = [task.id, task.name, task.prompt, task.expected_output]
+        for text in haystacks:
+            if not text:
+                continue
+            lowered = text.lower()
+            if repo_name in lowered:
+                score += 3
+            normalized = repo_name.replace("-", "").replace("_", "")
+            if normalized and normalized in lowered.replace("-", "").replace("_", ""):
+                score += 1
+    return score
+
+
+def resolve_git_repo(
+    repo_path: str | Path,
+    *,
+    tasks: list["TaskConfig"] | None = None,
+    work_dir: str | Path | None = None,
+) -> Path:
+    """
+    将用户输入的 repo_path 解析成真正的 Git 仓库。
+
+    支持：
+    - 直接传入 Git 仓库
+    - 传入微服务工作区根目录，再从子目录中推断目标仓库
+    - 传入 work_dir，优先从工作目录反推出所属仓库
+    """
+    root = Path(repo_path).resolve()
+    if not root.exists():
+        raise GitError(f"路径不存在：{root}")
+
+    if is_git_repo(root):
+        return root
+
+    if work_dir:
+        work_path = Path(work_dir).resolve()
+        for candidate in [work_path, *work_path.parents]:
+            if candidate == candidate.parent:
+                break
+            if is_git_repo(candidate):
+                return candidate
+            if candidate == root:
+                break
+
+    repos = discover_git_repos(root)
+    if not repos:
+        raise GitError(f"目录下未发现 Git 仓库：{root}")
+
+    if len(repos) == 1:
+        return repos[0]
+
+    tasks = tasks or []
+    scored = sorted(
+        ((repo, _score_repo_match(repo, tasks)) for repo in repos),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+
+    if scored and scored[0][1] > 0:
+        top_repo, top_score = scored[0]
+        second_score = scored[1][1] if len(scored) > 1 else -1
+        if top_score > second_score:
+            log.info("从工作区根目录自动匹配子仓库: %s", top_repo)
+            return top_repo
+
+    repo_names = ", ".join(repo.name for repo in repos[:8])
+    if len(repos) > 8:
+        repo_names += ", ..."
+    raise GitError(
+        f"'{root}' 不是 Git 仓库，但检测到多个子仓库：{repo_names}。"
+        " 请在工作目录中指定目标模块，或让任务描述包含更明确的模块名。"
+    )
 
 
 class GitClient:
