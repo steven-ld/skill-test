@@ -65,10 +65,14 @@ class ClaudeExecutor:
             path = Path(skill.skill_file)
             if path.exists():
                 content = path.read_text(encoding="utf-8")
-                parts.append(f"## Skill: {skill.name}\n\n{content}")
+                header = f"## Skill: {skill.name}"
+                if skill.tool:
+                    header += f" [{skill.tool}]"
+                parts.append(f"{header}\n\n{content}")
 
                 for ref in skill.ref_files:
-                    ref_path = path.parent / ref
+                    normalized_ref = ref.replace("\\", "/")
+                    ref_path = path.parent / normalized_ref
                     if ref_path.exists():
                         ref_content = ref_path.read_text(encoding="utf-8")
                         parts.append(f"### {ref_path.name}\n\n{ref_content}")

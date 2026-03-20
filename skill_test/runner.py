@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import queue
+import re
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -22,7 +23,7 @@ from .git_manager import GitClient, WorktreeManager, CommitManager
 from .log import get_logger
 from .models import (
     AppConfig, TaskConfig, SkillConfig, TaskResult, TaskStatus,
-    WorktreeInfo, RetryConfig, RunSession,
+    WorktreeInfo, RetryConfig, RunSession, ExperimentMode,
 )
 from .progress import ProgressDashboard, RICH_AVAILABLE
 
@@ -49,26 +50,82 @@ class ExecutionPlan:
         return f"ExecutionPlan(tasks={len(self.tasks)}, skills={len(self.skills)}, total={self.total_runs})"
 
 
+def _slug(value: str) -> str:
+    text = re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip().lower())
+    return text.strip("-") or "item"
+
+
+def _resolve_experiment_mode(task: TaskConfig, experiment_mode: str | None) -> str:
+    if experiment_mode in (None, "", "task", "auto"):
+        return task.mode or ExperimentMode.CODING.value
+    return experiment_mode
+
+
+def _build_task_prompt(task: TaskConfig, skill: SkillConfig, experiment_mode: str) -> tuple[str, str]:
+    deliverable_dir = f".skill-test/deliverables/{_slug(task.id)}"
+    skill_slug = _slug(skill.name or "baseline")
+
+    if experiment_mode == ExperimentMode.SOLUTION.value:
+        deliverable_path = f"{deliverable_dir}/{skill_slug}-technical-plan.md"
+        mode_instructions = (
+            "当前执行的是技术方案模式。\n"
+            f"请围绕需求产出一份完整、细化、可执行的技术方案，并保存到 `{deliverable_path}`。\n"
+            "要求：\n"
+            "1. 方案必须包含目标、范围、现状分析、设计拆解、接口/数据影响、实施步骤、风险与验证计划。\n"
+            "2. 优先引用仓库中的真实文件路径、模块名称和约束，不要给空泛建议。\n"
+            "3. 除了交付方案文档，不要修改业务代码，除非为了让方案文档落盘所需的最小目录或说明文件。\n"
+            "4. 最终回复中说明你创建或更新了哪些文件。"
+        )
+    else:
+        deliverable_path = f"{deliverable_dir}/{skill_slug}-delivery.md"
+        mode_instructions = (
+            "当前执行的是 Coding 模式。\n"
+            "请直接完成实现，并确保变更已经写入工作区文件。\n"
+            f"完成后请补充一份交付说明到 `{deliverable_path}`，说明改动摘要、影响范围、验证方式和剩余风险。\n"
+            "交付结果以 Git 提交/推送记录为准，请保持变更处于可提交状态。"
+        )
+
+    expected = ""
+    if task.expected_output:
+        expected = f"\n\n期望输出/验收补充：\n{task.expected_output.strip()}"
+
+    prompt = (
+        f"{task.prompt.rstrip()}\n\n"
+        "---\n\n"
+        "以下是测试平台追加的执行约束，请一并遵守：\n"
+        f"{mode_instructions}"
+        f"{expected}\n"
+    )
+    return prompt, deliverable_path
+
+
 def _run_one(
     executor: ClaudeExecutor,
     task: TaskConfig,
     skill: SkillConfig,
     work_dir: str | Path | None,
+    experiment_mode: str,
     retry: RetryConfig | None = None,
 ) -> TaskResult:
     timeout = task.timeout or executor.config.timeout
+    resolved_mode = _resolve_experiment_mode(task, experiment_mode)
+    prompt, deliverable_path = _build_task_prompt(task, skill, resolved_mode)
     if retry and retry.max_retries > 0:
         result = executor.execute_with_retry(
-            prompt=task.prompt, skill=skill,
+            prompt=prompt, skill=skill,
             task_dir=work_dir, timeout=timeout, retry=retry,
         )
     else:
         result = executor.execute(
-            prompt=task.prompt, skill=skill,
+            prompt=prompt, skill=skill,
             task_dir=work_dir, timeout=timeout,
         )
     result.task_id = task.id
     result.task_name = task.name
+    result.experiment_mode = resolved_mode
+    result.metadata.setdefault("deliverable_path", deliverable_path)
+    result.metadata.setdefault("skill_tool", skill.tool)
+    result.metadata.setdefault("skill_origin", skill.origin)
     return result
 
 
@@ -143,20 +200,24 @@ class TestRunner:
     def on_result(self, callback: Callable[[TaskResult], None]) -> None:
         self.events.on("task_completed", lambda d: callback(d.get("result")))
 
-    def _emit_registered(self, task: TaskConfig, skill: SkillConfig) -> None:
+    def _emit_registered(self, task: TaskConfig, skill: SkillConfig, experiment_mode: str) -> None:
         self.events.emit("task_registered", {
             "task_id": task.id,
             "task_name": task.name,
             "skill_name": skill.name,
+            "experiment_mode": _resolve_experiment_mode(task, experiment_mode),
+            "skill_tool": skill.tool,
             "status": "pending",
         })
 
-    def _emit_started(self, task: TaskConfig, skill: SkillConfig) -> None:
+    def _emit_started(self, task: TaskConfig, skill: SkillConfig, experiment_mode: str) -> None:
         if self._dashboard:
             self._dashboard.mark_running(task.id, skill.name)
         self.events.emit("task_started", {
             "task_id": task.id,
             "skill_name": skill.name,
+            "experiment_mode": _resolve_experiment_mode(task, experiment_mode),
+            "skill_tool": skill.tool,
             "status": "running",
         })
 
@@ -169,6 +230,7 @@ class TestRunner:
         self.events.emit("task_completed", {
             "task_id": result.task_id,
             "skill_name": result.skill_name,
+            "experiment_mode": result.experiment_mode,
             "status": result.status.value,
             "duration": result.duration,
             "result": result.to_dict(),
@@ -208,48 +270,81 @@ class TestRunner:
 
     # ── 简单模式 ─────────────────────────────────────────────────────────
 
-    def run_simple(self, tasks=None, skills=None) -> list[TaskResult]:
+    def run_simple(self, tasks=None, skills=None, *, experiment_mode="task") -> list[TaskResult]:
         plan = ExecutionPlan(tasks or self.config.tasks, skills or self._resolve_skills())
         log.info("简单模式 | %s", plan)
         results: list[TaskResult] = []
         ctx = self._create_dashboard(plan) if self.enable_progress else _Null()
         with ctx:
+            self._register_plan(plan, experiment_mode)
             for i, (task, skill) in enumerate(plan.items(), 1):
-                self._emit_started(task, skill)
-                result = _run_one(self.executor, task, skill, self.work_dir, self.config.retry)
+                self._emit_started(task, skill, experiment_mode)
+                result = _run_one(
+                    self.executor,
+                    task,
+                    skill,
+                    self.work_dir,
+                    experiment_mode,
+                    self.config.retry,
+                )
                 results.append(result)
                 self._emit_completed(result)
         return results
 
     # ── 并行模式 ─────────────────────────────────────────────────────────
 
-    def run_parallel(self, tasks=None, skills=None, max_workers=None) -> list[TaskResult]:
+    def run_parallel(self, tasks=None, skills=None, *, experiment_mode="task", max_workers=None) -> list[TaskResult]:
         plan = ExecutionPlan(tasks or self.config.tasks, skills or self._resolve_skills())
         workers = max_workers or self.config.max_workers
         log.info("并行模式 | %s | workers=%d", plan, workers)
         results: list[TaskResult] = []
         ctx = self._create_dashboard(plan) if self.enable_progress else _Null()
         with ctx:
+            self._register_plan(plan, experiment_mode)
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futures = {}
                 for task, skill in plan.items():
-                    self._emit_started(task, skill)
-                    future = pool.submit(_run_one, self.executor, task, skill, self.work_dir, self.config.retry)
+                    self._emit_started(task, skill, experiment_mode)
+                    future = pool.submit(
+                        _run_one,
+                        self.executor,
+                        task,
+                        skill,
+                        self.work_dir,
+                        experiment_mode,
+                        self.config.retry,
+                    )
                     futures[future] = (task, skill)
                 for future in as_completed(futures):
                     task, skill = futures[future]
                     try:
                         result = future.result()
                     except Exception as e:
-                        result = TaskResult(task_id=task.id, task_name=task.name, skill_name=skill.name,
-                                            status=TaskStatus.FAILED, error=str(e))
+                        result = TaskResult(
+                            task_id=task.id,
+                            task_name=task.name,
+                            skill_name=skill.name,
+                            experiment_mode=_resolve_experiment_mode(task, experiment_mode),
+                            status=TaskStatus.FAILED,
+                            error=str(e),
+                            metadata={"skill_tool": skill.tool, "skill_origin": skill.origin},
+                        )
                     results.append(result)
                     self._emit_completed(result)
         return results
 
     # ── 隔离模式 ─────────────────────────────────────────────────────────
 
-    def run_isolated(self, tasks=None, skills=None, *, commit=False, push=False, max_workers=None) -> list[TaskResult]:
+    def run_isolated(
+        self,
+        tasks=None,
+        skills=None,
+        *,
+        experiment_mode="task",
+        commit=False,
+        push=False,
+        max_workers=None,
+    ) -> list[TaskResult]:
         if not self._wt_mgr or not self._git:
             raise RuntimeError("隔离模式需要提供 repo_path")
         plan = ExecutionPlan(tasks or self.config.tasks, skills or self._resolve_skills())
@@ -259,6 +354,7 @@ class TestRunner:
         worktrees: list[WorktreeInfo] = []
         ctx = self._create_dashboard(plan) if self.enable_progress else _Null()
         with ctx:
+            self._register_plan(plan, experiment_mode)
             try:
                 wt_map: dict[tuple[str, str], WorktreeInfo] = {}
                 for task, skill in plan.items():
@@ -268,19 +364,33 @@ class TestRunner:
                     worktrees.append(wt)
 
                 def _do(task, skill):
-                    self._emit_started(task, skill)
+                    self._emit_started(task, skill, experiment_mode)
                     wt = wt_map[(task.id, skill.name)]
-                    result = _run_one(self.executor, task, skill, wt.path, self.config.retry)
+                    result = _run_one(
+                        self.executor,
+                        task,
+                        skill,
+                        wt.path,
+                        experiment_mode,
+                        self.config.retry,
+                    )
                     result.worktree_branch = wt.branch
                     self._analyze_diff(result, wt.path)
                     if commit and result.success and result.files_changed:
                         try:
-                            self._commit_mgr.commit(wt, f"skill-test: {task.name} [{skill.name}]")  # type: ignore
+                            commit_hash = self._commit_mgr.commit(
+                                wt,
+                                f"skill-test: {task.name} [{skill.name}]",
+                            )  # type: ignore
+                            result.metadata["commit_hash"] = commit_hash
+                            result.metadata["committed"] = bool(commit_hash)
                             if push:
                                 self._commit_mgr.push(wt)  # type: ignore
-                            result.metadata["committed"] = True
+                                result.metadata["pushed"] = True
                         except Exception as e:
                             result.metadata["commit_error"] = str(e)
+                    elif commit:
+                        result.metadata["committed"] = False
                     return result
 
                 with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -290,8 +400,15 @@ class TestRunner:
                         try:
                             result = future.result()
                         except Exception as e:
-                            result = TaskResult(task_id=task.id, task_name=task.name,
-                                                skill_name=skill.name, status=TaskStatus.FAILED, error=str(e))
+                            result = TaskResult(
+                                task_id=task.id,
+                                task_name=task.name,
+                                skill_name=skill.name,
+                                experiment_mode=_resolve_experiment_mode(task, experiment_mode),
+                                status=TaskStatus.FAILED,
+                                error=str(e),
+                                metadata={"skill_tool": skill.tool, "skill_origin": skill.origin},
+                            )
                         results.append(result)
                         self._emit_completed(result)
             finally:
@@ -305,29 +422,46 @@ class TestRunner:
 
     # ── 统一入口 ─────────────────────────────────────────────────────────
 
-    def run(self, *, mode="auto", tasks=None, skills=None, commit=False, push=False) -> list[TaskResult]:
+    def run(
+        self,
+        *,
+        mode="auto",
+        experiment_mode="task",
+        tasks=None,
+        skills=None,
+        commit=False,
+        push=False,
+    ) -> list[TaskResult]:
         if mode == "auto":
             mode = "isolated" if self.repo_path else "parallel"
 
         self._session = RunSession(
             config_name=getattr(self.config, '_config_name', ''),
             mode=mode,
+            experiment_mode=experiment_mode,
             repo_path=str(self.repo_path or ''),
             total_tasks=len(tasks or self.config.tasks) * len(skills or self.config.skills),
         )
         self.events.emit("run_started", {
             "run_id": self._session.id,
             "mode": mode,
+            "experiment_mode": experiment_mode,
             "total": self._session.total_tasks,
         })
 
         start = time.monotonic()
         if mode == "simple":
-            results = self.run_simple(tasks, skills)
+            results = self.run_simple(tasks, skills, experiment_mode=experiment_mode)
         elif mode == "parallel":
-            results = self.run_parallel(tasks, skills)
+            results = self.run_parallel(tasks, skills, experiment_mode=experiment_mode)
         elif mode == "isolated":
-            results = self.run_isolated(tasks, skills, commit=commit, push=push)
+            results = self.run_isolated(
+                tasks,
+                skills,
+                experiment_mode=experiment_mode,
+                commit=commit,
+                push=push,
+            )
         else:
             raise ValueError(f"未知模式: {mode}")
 
@@ -342,6 +476,7 @@ class TestRunner:
             "total": len(results),
             "success": ok,
             "failed": len(results) - ok,
+            "experiment_mode": experiment_mode,
             "elapsed": round(elapsed, 1),
             "results": [r.to_dict() for r in results],
         })
@@ -355,10 +490,13 @@ class TestRunner:
 
     def _create_dashboard(self, plan):
         self._dashboard = ProgressDashboard(total=plan.total_runs, title="AI Skill 测试")
-        for task, skill in plan.items():
-            self._dashboard.register(task.id, task.name, skill.name)
-            self._emit_registered(task, skill)
         return self._dashboard
+
+    def _register_plan(self, plan: ExecutionPlan, experiment_mode: str) -> None:
+        for task, skill in plan.items():
+            if self._dashboard:
+                self._dashboard.register(task.id, task.name, skill.name)
+            self._emit_registered(task, skill, experiment_mode)
 
     def _save_history(self, results):
         if not self.enable_history or not results:
@@ -366,7 +504,7 @@ class TestRunner:
         try:
             from .history import HistoryDB
             with HistoryDB(Path(self.config.output_dir) / "history.db") as db:
-                db.record(results)
+                db.record(results, session_id=self._session.id if self._session else "")
         except Exception as e:
             log.warning("历史记录保存失败: %s", e)
 

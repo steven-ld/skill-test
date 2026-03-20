@@ -87,6 +87,8 @@ class ComparisonReport:
             avg_dur = sum(r.duration for r in items) / total if total else 0
             avg_files = sum(len(r.files_changed) for r in items) / total if total else 0
             avg_output = sum(len(r.output) for r in items) / total if total else 0
+            committed = sum(1 for r in items if r.commit_hash)
+            pushed = sum(1 for r in items if r.pushed)
 
             metrics.append({
                 "skill": name,
@@ -97,6 +99,8 @@ class ComparisonReport:
                 "avg_duration": round(avg_dur, 1),
                 "avg_files": round(avg_files, 1),
                 "avg_output_len": int(avg_output),
+                "commit_rate": round(100 * committed / total, 1) if total else 0,
+                "push_rate": round(100 * pushed / total, 1) if total else 0,
             })
         return metrics
 
@@ -142,6 +146,8 @@ class ComparisonReport:
         table.add_column("成功率", justify="center")
         table.add_column("平均耗时", justify="right")
         table.add_column("平均文件数", justify="right")
+        table.add_column("提交率", justify="center")
+        table.add_column("推送率", justify="center")
         table.add_column("平均输出长度", justify="right")
 
         for m in self.skill_metrics():
@@ -153,6 +159,8 @@ class ComparisonReport:
                 f"[{rate_style}]{rate}%[/]",
                 f"{m['avg_duration']}s",
                 str(m["avg_files"]),
+                f"{m['commit_rate']}%",
+                f"{m['push_rate']}%",
                 str(m["avg_output_len"]),
             )
 
@@ -192,7 +200,9 @@ class ComparisonReport:
                 f"  {m['skill']:20s} | "
                 f"成功率 {m['success_rate']:5.1f}% | "
                 f"耗时 {m['avg_duration']:6.1f}s | "
-                f"文件 {m['avg_files']:.1f}"
+                f"文件 {m['avg_files']:.1f} | "
+                f"提交 {m['commit_rate']:5.1f}% | "
+                f"推送 {m['push_rate']:5.1f}%"
             )
 
         diffs = self.pairwise_diffs()
@@ -216,6 +226,8 @@ class ComparisonReport:
                 <td style="color:{color};font-weight:bold">{rate}%</td>
                 <td>{m['avg_duration']}s</td>
                 <td>{m['avg_files']}</td>
+                <td>{m['commit_rate']}%</td>
+                <td>{m['push_rate']}%</td>
                 <td>{m['avg_output_len']}</td>
             </tr>"""
 
@@ -249,7 +261,7 @@ class ComparisonReport:
 <body>
 <h1>Skill 对比分析报告</h1>
 <table>
-<tr><th>Skill</th><th>运行数</th><th>成功率</th><th>平均耗时</th><th>平均文件数</th><th>平均输出长度</th></tr>
+<tr><th>Skill</th><th>运行数</th><th>成功率</th><th>平均耗时</th><th>平均文件数</th><th>提交率</th><th>推送率</th><th>平均输出长度</th></tr>
 {rows_html}
 </table>
 <h2>代码输出差异</h2>

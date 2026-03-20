@@ -71,6 +71,7 @@ def cmd_run(args: argparse.Namespace) -> None:
 
     results = runner.run(
         mode=args.mode,
+        experiment_mode=args.experiment_mode,
         commit=args.commit,
         push=args.push,
     )
@@ -112,13 +113,15 @@ def _list_rich(config, what, console):
         table = Table(title="[bold]可用任务[/]", box=box.ROUNDED)
         table.add_column("ID", style="bold cyan")
         table.add_column("名称", style="bold")
+        table.add_column("模式", justify="center")
         table.add_column("Prompt (前80字)", ratio=3)
         table.add_column("超时", justify="right")
 
         for t in config.tasks:
             table.add_row(
                 t.id, t.name,
-                t.prompt[:80].replace("\n", " ") + "...",
+                t.mode,
+                t.prompt[:80].replace("\n", " ") + "…",
                 f"{t.timeout}s" if t.timeout else "默认",
             )
         console.print(table)
@@ -126,6 +129,7 @@ def _list_rich(config, what, console):
     if what in ("skills", "all"):
         table = Table(title="[bold]可用 Skills[/]", box=box.ROUNDED)
         table.add_column("名称", style="bold cyan")
+        table.add_column("工具", justify="center")
         table.add_column("类型", justify="center")
         table.add_column("来源")
 
@@ -136,7 +140,7 @@ def _list_rich(config, what, console):
                 stype, source = "文件", s.skill_file
             else:
                 stype, source = "内联", (s.system_prompt or "")[:60]
-            table.add_row(s.name, stype, source)
+            table.add_row(s.name, s.tool, stype, source)
         console.print(table)
 
     if what in ("presets", "all"):
@@ -154,13 +158,13 @@ def _list_plain(config, what):
     if what in ("tasks", "all"):
         print("\n  可用任务:")
         for t in config.tasks:
-            print(f"    {t.id}: {t.name}")
+            print(f"    {t.id}: {t.name} [{t.mode}]")
 
     if what in ("skills", "all"):
         print("\n  可用 Skills:")
         for s in config.skills:
             label = "baseline" if s.is_baseline else (s.system_prompt or s.skill_file or "")
-            print(f"    {s.name}: {label[:60]}")
+            print(f"    {s.name} ({s.tool}): {label[:60]}")
 
     if what in ("presets", "all"):
         from .discovery import list_presets
@@ -188,15 +192,17 @@ def cmd_discover(args: argparse.Namespace) -> None:
         console = make_console()
         table = Table(title=f"[bold]在 {path} 中发现的 Skills[/]", box=box.ROUNDED)
         table.add_column("名称", style="bold cyan")
+        table.add_column("工具", justify="center")
         table.add_column("Skill 文件")
+        table.add_column("来源")
         table.add_column("引用文件数", justify="right")
         for s in skills:
-            table.add_row(s.name, s.skill_file or "-", str(len(s.ref_files)))
+            table.add_row(s.name, s.tool, s.skill_file or "-", s.origin, str(len(s.ref_files)))
         console.print(table)
     except ImportError:
         print(f"\n  发现 {len(skills)} 个 Skill:")
         for s in skills:
-            print(f"    {s.name}: {s.skill_file} ({len(s.ref_files)} refs)")
+            print(f"    {s.name} ({s.tool}): {s.skill_file} [{s.origin}] ({len(s.ref_files)} refs)")
         print()
 
 
@@ -457,6 +463,7 @@ report_formats:
 tasks:
   - id: task_001
     name: "Python 快速排序"
+    mode: coding
     prompt: |
       实现一个快速排序算法，要求：
       1. 使用 Python
@@ -470,6 +477,7 @@ skills:
 
   - name: write-expert
     system_prompt: "你是专业的代码编写专家，擅长生成高质量、结构清晰的代码。"
+    tool: preset
 
   # 使用预设 Skill
   # - name: tdd
@@ -556,6 +564,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument(
         "-m", "--mode", default="auto",
         choices=["auto", "simple", "parallel", "isolated"],
+    )
+    p_run.add_argument(
+        "--experiment-mode", default="task",
+        choices=["task", "solution", "coding"],
+        help="实验模式：task=按任务配置，solution=技术方案模式，coding=直接编码模式",
     )
     p_run.add_argument("--commit", action="store_true", help="隔离模式下自动提交")
     p_run.add_argument("--push", action="store_true", help="提交后推送")

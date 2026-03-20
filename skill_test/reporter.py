@@ -50,6 +50,8 @@ def format_text(results: list[TaskResult]) -> str:
     stats = _compute_stats(results)
     total = len(results)
     ok = sum(1 for r in results if r.success)
+    committed = sum(1 for r in results if r.commit_hash)
+    pushed = sum(1 for r in results if r.pushed)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [
@@ -60,6 +62,8 @@ def format_text(results: list[TaskResult]) -> str:
         f"  总测试数:  {total}",
         f"  成功:      {ok}",
         f"  失败:      {total - ok}",
+        f"  已提交:    {committed}",
+        f"  已推送:    {pushed}",
         "",
         "-" * 72,
         "  各 Skill 表现",
@@ -77,8 +81,14 @@ def format_text(results: list[TaskResult]) -> str:
     for r in results:
         icon = "OK  " if r.success else "FAIL"
         lines.append(f"  [{icon}] {r.task_id} | {r.skill_name} | {r.duration:.1f}s")
+        lines.append(f"         模式: {r.experiment_mode}")
         if r.worktree_branch:
             lines.append(f"         分支: {r.worktree_branch}")
+        if r.commit_hash:
+            push_text = "已推送" if r.pushed else "未推送"
+            lines.append(f"         提交: {r.commit_hash[:12]} ({push_text})")
+        if r.deliverable_path:
+            lines.append(f"         交付: {r.deliverable_path}")
         if r.files_changed:
             lines.append(f"         变更: {len(r.files_changed)} 个文件")
         if r.error:
@@ -99,6 +109,8 @@ def format_json(results: list[TaskResult]) -> str:
             "total": len(results),
             "success": sum(1 for r in results if r.success),
             "failed": sum(1 for r in results if not r.success),
+            "committed": sum(1 for r in results if r.commit_hash),
+            "pushed": sum(1 for r in results if r.pushed),
         },
         "skill_stats": stats,
         "results": [r.to_dict() for r in results],
@@ -112,6 +124,8 @@ def format_markdown(results: list[TaskResult]) -> str:
     """生成 Markdown 报告。"""
     stats = _compute_stats(results)
     ok = sum(1 for r in results if r.success)
+    committed = sum(1 for r in results if r.commit_hash)
+    pushed = sum(1 for r in results if r.pushed)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [
@@ -126,6 +140,8 @@ def format_markdown(results: list[TaskResult]) -> str:
         f"| 总测试数 | {len(results)} |",
         f"| 成功 | {ok} |",
         f"| 失败 | {len(results) - ok} |",
+        f"| 已提交 | {committed} |",
+        f"| 已推送 | {pushed} |",
         "",
         "## 各 Skill 表现",
         "",
@@ -147,9 +163,15 @@ def format_markdown(results: list[TaskResult]) -> str:
         lines.append(f"### {icon} {r.task_id} — {r.skill_name}")
         lines.append("")
         lines.append(f"- **状态**: {r.status.value}")
+        lines.append(f"- **实验模式**: {r.experiment_mode}")
         lines.append(f"- **耗时**: {r.duration:.1f}s")
         if r.worktree_branch:
             lines.append(f"- **分支**: `{r.worktree_branch}`")
+        if r.commit_hash:
+            lines.append(f"- **提交**: `{r.commit_hash}`")
+            lines.append(f"- **推送**: {'是' if r.pushed else '否'}")
+        if r.deliverable_path:
+            lines.append(f"- **交付文件**: `{r.deliverable_path}`")
         if r.files_changed:
             lines.append(f"- **变更文件**: {len(r.files_changed)}")
         if r.error:
@@ -165,6 +187,8 @@ def format_html(results: list[TaskResult]) -> str:
     """生成简洁 HTML 报告。"""
     stats = _compute_stats(results)
     ok = sum(1 for r in results if r.success)
+    committed = sum(1 for r in results if r.commit_hash)
+    pushed = sum(1 for r in results if r.pushed)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     rows_stats = ""
@@ -180,12 +204,16 @@ def format_html(results: list[TaskResult]) -> str:
     rows_detail = ""
     for r in results:
         cls = "ok" if r.success else "fail"
+        commit_text = r.commit_hash[:10] if r.commit_hash else "-"
         rows_detail += f"""
         <tr class="{cls}">
           <td>{r.task_id}</td>
           <td>{r.skill_name}</td>
+          <td>{r.experiment_mode}</td>
           <td>{r.status.value}</td>
           <td>{r.duration:.1f}s</td>
+          <td>{commit_text}</td>
+          <td>{"yes" if r.pushed else "no"}</td>
           <td>{r.error[:80] if r.error else '-'}</td>
         </tr>"""
 
@@ -207,7 +235,7 @@ def format_html(results: list[TaskResult]) -> str:
 </head>
 <body>
 <h1>AI Skill 测试报告</h1>
-<p class="meta">生成时间: {now} | 总计: {len(results)} | 成功: {ok} | 失败: {len(results) - ok}</p>
+<p class="meta">生成时间: {now} | 总计: {len(results)} | 成功: {ok} | 失败: {len(results) - ok} | 提交: {committed} | 推送: {pushed}</p>
 
 <h2>各 Skill 表现</h2>
 <table>
@@ -217,7 +245,7 @@ def format_html(results: list[TaskResult]) -> str:
 
 <h2>详细结果</h2>
 <table>
-  <tr><th>Task</th><th>Skill</th><th>状态</th><th>耗时</th><th>错误</th></tr>
+  <tr><th>Task</th><th>Skill</th><th>实验模式</th><th>状态</th><th>耗时</th><th>提交</th><th>推送</th><th>错误</th></tr>
   {rows_detail}
 </table>
 </body>

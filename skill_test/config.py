@@ -19,7 +19,7 @@ from .exceptions import ConfigError
 from .log import get_logger
 from .models import (
     AppConfig, CLIConfig, GitConfig, RetryConfig, SkillGroup,
-    TaskConfig, SkillConfig, ReportFormat,
+    TaskConfig, SkillConfig, ReportFormat, ExperimentMode,
 )
 
 log = get_logger("config")
@@ -95,6 +95,7 @@ def _parse_tasks(raw_list: list[dict]) -> list[TaskConfig]:
             prompt=item["prompt"],
             expected_output=item.get("expected_output", ""),
             timeout=item.get("timeout"),
+            mode=item.get("mode", ExperimentMode.CODING.value),
         ))
     return tasks
 
@@ -114,6 +115,9 @@ def _parse_skills(raw_list: list[dict]) -> list[SkillConfig]:
                     system_prompt=preset.system_prompt,
                     skill_file=preset.skill_file,
                     ref_files=list(preset.ref_files),
+                    tool=preset.tool,
+                    origin=preset.origin,
+                    description=preset.description,
                 )
                 skills.append(preset_copy)
                 continue
@@ -123,6 +127,9 @@ def _parse_skills(raw_list: list[dict]) -> list[SkillConfig]:
             system_prompt=item.get("system_prompt"),
             skill_file=item.get("skill_file"),
             ref_files=item.get("ref_files", []),
+            tool=item.get("tool", "manual"),
+            origin=item.get("origin", ""),
+            description=item.get("description", ""),
         ))
     return skills
 
@@ -161,6 +168,8 @@ def validate_config(config: AppConfig) -> list[str]:
             warnings.append(f"任务 '{task.id}' 的 prompt 为空")
         if task.timeout and task.timeout < 10:
             warnings.append(f"任务 '{task.id}' 超时过短: {task.timeout}s")
+        if task.mode not in {ExperimentMode.CODING.value, ExperimentMode.SOLUTION.value}:
+            warnings.append(f"任务 '{task.id}' 的 mode 非法: {task.mode}")
 
     for skill in config.skills:
         if skill.skill_file and not Path(skill.skill_file).exists():
@@ -241,13 +250,17 @@ def build_default_config() -> AppConfig:
                     "2. 包含类型标注\n"
                     "3. 包含单元测试"
                 ),
+                mode=ExperimentMode.CODING.value,
             ),
         ],
         skills=[
-            SkillConfig(name="baseline"),
+            SkillConfig(name="baseline", tool="builtin", origin="builtin", description="普通提示词基线"),
             SkillConfig(
                 name="write-expert",
                 system_prompt="你是专业的代码编写专家，擅长生成高质量、结构清晰的代码。",
+                tool="preset",
+                origin="builtin",
+                description="强调代码质量与结构化输出的内置预设",
             ),
         ],
     )

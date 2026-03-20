@@ -29,6 +29,11 @@ class ReportFormat(str, Enum):
     HTML = "html"
 
 
+class ExperimentMode(str, Enum):
+    SOLUTION = "solution"
+    CODING = "coding"
+
+
 # ─── 配置模型 ────────────────────────────────────────────────────────────────
 
 @dataclass
@@ -38,6 +43,9 @@ class SkillConfig:
     system_prompt: Optional[str] = None
     skill_file: Optional[str] = None  # SKILL.md 路径，自动读取
     ref_files: list[str] = field(default_factory=list)
+    tool: str = "manual"
+    origin: str = ""
+    description: str = ""
 
     @property
     def is_baseline(self) -> bool:
@@ -52,6 +60,7 @@ class TaskConfig:
     prompt: str
     expected_output: str = ""
     timeout: Optional[int] = None  # 覆盖全局超时
+    mode: str = ExperimentMode.CODING.value
 
 
 @dataclass
@@ -131,6 +140,7 @@ class TaskResult:
     task_id: str = ""
     task_name: str = ""
     skill_name: str = ""
+    experiment_mode: str = ExperimentMode.CODING.value
     status: TaskStatus = TaskStatus.PENDING
     output: str = ""
     error: str = ""
@@ -169,6 +179,22 @@ class TaskResult:
     def lines_deleted(self) -> int:
         return (self.change_summary or {}).get("total_lines_deleted", 0)
 
+    @property
+    def commit_hash(self) -> str:
+        return self.metadata.get("commit_hash", "")
+
+    @property
+    def pushed(self) -> bool:
+        return bool(self.metadata.get("pushed"))
+
+    @property
+    def deliverable_path(self) -> str:
+        return self.metadata.get("deliverable_path", "")
+
+    @property
+    def skill_tool(self) -> str:
+        return self.metadata.get("skill_tool", "")
+
     def to_dict(self) -> dict:
         d = asdict(self)
         d["status"] = self.status.value
@@ -177,6 +203,10 @@ class TaskResult:
         d["files_deleted"] = self.files_deleted
         d["lines_added"] = self.lines_added
         d["lines_deleted"] = self.lines_deleted
+        d["commit_hash"] = self.commit_hash
+        d["pushed"] = self.pushed
+        d["deliverable_path"] = self.deliverable_path
+        d["skill_tool"] = self.skill_tool
         return d
 
 
@@ -186,6 +216,7 @@ class RunSession:
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     config_name: str = ""
     mode: str = "auto"
+    experiment_mode: str = "task"
     repo_path: str = ""
     started_at: str = field(default_factory=lambda: datetime.now().isoformat())
     completed_at: str = ""
@@ -203,6 +234,7 @@ class RunSession:
             "id": self.id,
             "config_name": self.config_name,
             "mode": self.mode,
+            "experiment_mode": self.experiment_mode,
             "repo_path": self.repo_path,
             "started_at": self.started_at,
             "completed_at": self.completed_at,

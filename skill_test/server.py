@@ -17,6 +17,8 @@ Web 平台服务器 — FastAPI + WebSocket 实时推送。
   WS   /ws                  实时事件流
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import queue
@@ -28,7 +30,7 @@ from typing import Optional, List
 
 from .config import load_config, build_default_config, validate_config
 from .log import setup_logging, get_logger
-from .models import AppConfig, RunSession, ReportFormat
+from .models import AppConfig, RunSession, ReportFormat, SkillConfig
 
 log = get_logger("server")
 
@@ -56,14 +58,27 @@ if FASTAPI_AVAILABLE:
     class DiscoverRequest(BaseModel):
         path: str
 
+    class SelectedSkillRequest(BaseModel):
+        name: str
+        system_prompt: str = ""
+        skill_file: str = ""
+        ref_files: List[str] = []
+        tool: str = "manual"
+        origin: str = ""
+        description: str = ""
+
     class RunRequest(BaseModel):
         mode: str = "auto"
+        experiment_mode: str = "task"
         repo_path: str = ""
         work_dir: str = ""
         commit: bool = False
         push: bool = False
+        include_baseline: bool = True
+        use_config_skills: bool = True
         task_ids: List[str] = []
         skill_names: List[str] = []
+        selected_skills: List[SelectedSkillRequest] = []
 
 
 class _WSManager:
@@ -117,7 +132,7 @@ class PlatformState:
 def create_app() -> FastAPI:
     _require_fastapi()
 
-    app = FastAPI(title="AI Skill Test Platform", version="3.0.0")
+    app = FastAPI(title="AI Skill Test Platform", version="4.0.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -140,7 +155,8 @@ def create_app() -> FastAPI:
     @app.get("/api/status")
     async def status():
         return {
-            "version": "3.0.0",
+            "version": "4.0.0",
+            "product_mode": "platform",
             "running": state.is_running,
             "active_run": state.active_run_id,
             "ws_clients": ws_mgr.count,
@@ -161,8 +177,26 @@ def create_app() -> FastAPI:
             "retry": {"max_retries": c.retry.max_retries, "retry_on_timeout": c.retry.retry_on_timeout},
             "max_workers": c.max_workers,
             "output_dir": c.output_dir,
-            "tasks": [{"id": t.id, "name": t.name, "prompt": t.prompt[:200]} for t in c.tasks],
-            "skills": [{"name": s.name, "type": "baseline" if s.is_baseline else ("file" if s.skill_file else "inline")} for s in c.skills],
+            "tasks": [
+                {
+                    "id": t.id,
+                    "name": t.name,
+                    "prompt": t.prompt[:200],
+                    "mode": t.mode,
+                }
+                for t in c.tasks
+            ],
+            "skills": [
+                {
+                    "name": s.name,
+                    "type": "baseline" if s.is_baseline else ("file" if s.skill_file else "inline"),
+                    "tool": s.tool,
+                    "origin": s.origin,
+                    "description": s.description,
+                    "ref_files": s.ref_files,
+                }
+                for s in c.skills
+            ],
         }
 
     @app.post("/api/config/load")
@@ -190,6 +224,10 @@ def create_app() -> FastAPI:
                 "type": "baseline" if s.is_baseline else ("file" if s.skill_file else "inline"),
                 "source": s.skill_file or (s.system_prompt or "")[:100],
                 "ref_count": len(s.ref_files),
+                "ref_files": s.ref_files,
+                "tool": s.tool,
+                "origin": s.origin,
+                "description": s.description,
             })
         return {"skills": skills}
 
@@ -198,7 +236,12 @@ def create_app() -> FastAPI:
         from .discovery import list_presets
         return {
             "presets": [
-                {"name": n, "prompt": (s.system_prompt or "")[:100]}
+                {
+                    "name": n,
+                    "prompt": (s.system_prompt or "")[:100],
+                    "tool": s.tool,
+                    "description": s.description,
+                }
                 for n, s in list_presets().items()
             ]
         }
@@ -211,7 +254,15 @@ def create_app() -> FastAPI:
             "path": req.path,
             "found": len(skills),
             "skills": [
-                {"name": s.name, "file": s.skill_file, "refs": len(s.ref_files)}
+                {
+                    "name": s.name,
+                    "file": s.skill_file,
+                    "tool": s.tool,
+                    "origin": s.origin,
+                    "description": s.description,
+                    "refs": len(s.ref_files),
+                    "ref_files": s.ref_files,
+                }
                 for s in skills
             ],
         }
@@ -223,11 +274,58 @@ def create_app() -> FastAPI:
         if state.is_running:
             return JSONResponse({"error": "已有测试在运行中"}, status_code=409)
 
+        filtered_tasks = state.config.tasks
+        if req.task_ids:
+            filtered_tasks = [t for t in state.config.tasks if t.id in req.task_ids]
+
+        filtered_skills: list[SkillConfig] = []
+        if req.use_config_skills:
+            if req.skill_names:
+                filtered_skills = [s for s in state.config.skills if s.name in req.skill_names]
+            else:
+                filtered_skills = list(state.config.skills)
+
+        if req.selected_skills:
+            filtered_skills.extend(
+                SkillConfig(
+                    name=s.name,
+                    system_prompt=s.system_prompt or None,
+                    skill_file=s.skill_file or None,
+                    ref_files=s.ref_files,
+                    tool=s.tool,
+                    origin=s.origin,
+                    description=s.description,
+                )
+                for s in req.selected_skills
+            )
+
+        deduped_skills: list[SkillConfig] = []
+        seen_skill_names: set[str] = set()
+        for skill in filtered_skills:
+            if skill.name in seen_skill_names:
+                continue
+            seen_skill_names.add(skill.name)
+            deduped_skills.append(skill)
+
+        filtered_skills = deduped_skills
+
+        if req.include_baseline and "baseline" not in seen_skill_names:
+            filtered_skills.insert(
+                0,
+                SkillConfig(
+                    name="baseline",
+                    tool="builtin",
+                    origin="builtin:baseline",
+                    description="普通提示词基线",
+                ),
+            )
+
         session = RunSession(
             config_name=state.config_path,
             mode=req.mode,
+            experiment_mode=req.experiment_mode,
             repo_path=req.repo_path,
-            total_tasks=len(state.config.tasks) * len(state.config.skills),
+            total_tasks=len(filtered_tasks) * len(filtered_skills),
         )
         state.sessions[session.id] = session
         state.active_run_id = session.id
@@ -239,7 +337,11 @@ def create_app() -> FastAPI:
         )
         thread.start()
 
-        return {"run_id": session.id, "total": session.total_tasks}
+        return {
+            "run_id": session.id,
+            "total": session.total_tasks,
+            "experiment_mode": req.experiment_mode,
+        }
 
     @app.get("/api/runs")
     async def list_runs():
@@ -310,18 +412,54 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
     from .runner import TestRunner
     from .reporter import save_report
 
-    config = state.config
     session = state.sessions[run_id]
-    loop = asyncio.new_event_loop()
 
     try:
+        config = state.config
         filtered_tasks = config.tasks
         if req.task_ids:
             filtered_tasks = [t for t in config.tasks if t.id in req.task_ids]
 
-        filtered_skills = config.skills
-        if req.skill_names:
-            filtered_skills = [s for s in config.skills if s.name in req.skill_names]
+        filtered_skills: list[SkillConfig] = []
+        if req.use_config_skills:
+            if req.skill_names:
+                filtered_skills = [s for s in config.skills if s.name in req.skill_names]
+            else:
+                filtered_skills = list(config.skills)
+
+        if req.selected_skills:
+            filtered_skills.extend(
+                SkillConfig(
+                    name=s.name,
+                    system_prompt=s.system_prompt or None,
+                    skill_file=s.skill_file or None,
+                    ref_files=s.ref_files,
+                    tool=s.tool,
+                    origin=s.origin,
+                    description=s.description,
+                )
+                for s in req.selected_skills
+            )
+
+        deduped_skills: list[SkillConfig] = []
+        seen_skill_names: set[str] = set()
+        for skill in filtered_skills:
+            if skill.name in seen_skill_names:
+                continue
+            seen_skill_names.add(skill.name)
+            deduped_skills.append(skill)
+        filtered_skills = deduped_skills
+
+        if req.include_baseline and "baseline" not in seen_skill_names:
+            filtered_skills.insert(
+                0,
+                SkillConfig(
+                    name="baseline",
+                    tool="builtin",
+                    origin="builtin:baseline",
+                    description="普通提示词基线",
+                ),
+            )
 
         session.total_tasks = len(filtered_tasks) * len(filtered_skills)
 
@@ -335,7 +473,7 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
 
         def _broadcast_sync(data):
             data["run_id"] = run_id
-            asyncio.run_coroutine_threadsafe(ws_mgr.broadcast(data), loop)
+            asyncio.run(ws_mgr.broadcast(data))
 
         runner.events.on("task_registered", _broadcast_sync)
         runner.events.on("task_started", _broadcast_sync)
@@ -344,10 +482,9 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
             _update_session(session, d),
         ))
 
-        _broadcast_sync({"event": "run_started", "total": session.total_tasks})
-
         results = runner.run(
             mode=req.mode,
+            experiment_mode=req.experiment_mode,
             tasks=filtered_tasks,
             skills=filtered_skills,
             commit=req.commit,
@@ -362,27 +499,17 @@ def _run_in_background(state: PlatformState, ws_mgr: _WSManager, run_id: str, re
         except Exception:
             pass
 
-        ok = sum(1 for r in results if r.success)
-        _broadcast_sync({
-            "event": "run_complete",
-            "total": len(results),
-            "success": ok,
-            "failed": len(results) - ok,
-        })
-
     except Exception as e:
         log.error("测试执行失败: %s", e)
         session.status = "failed"
         try:
-            asyncio.run_coroutine_threadsafe(
-                ws_mgr.broadcast({"event": "run_error", "run_id": run_id, "error": str(e)}),
-                loop,
+            asyncio.run(
+                ws_mgr.broadcast({"event": "run_error", "run_id": run_id, "error": str(e)})
             )
         except Exception:
             pass
     finally:
         state.active_run_id = None
-        loop.close()
 
 
 def _update_session(session: RunSession, data: dict):
@@ -394,9 +521,11 @@ def _update_session(session: RunSession, data: dict):
             task_id=result_data.get("task_id", ""),
             task_name=result_data.get("task_name", ""),
             skill_name=result_data.get("skill_name", ""),
+            experiment_mode=result_data.get("experiment_mode", "coding"),
             status=TaskStatus(result_data.get("status", "failed")),
             duration=result_data.get("duration", 0),
             change_summary=result_data.get("change_summary"),
+            metadata=result_data.get("metadata", {}),
         )
         session.results.append(r)
 
@@ -421,7 +550,7 @@ def run_server(
                 pass
         log.info("配置文件: %s", config_path)
 
-    print(f"\n  AI Skill Test Platform v3.0.0")
+    print(f"\n  AI Skill Test Platform v4.0.0")
     print(f"  http://{host}:{port}")
     print(f"  按 Ctrl+C 停止\n")
 

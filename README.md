@@ -1,6 +1,14 @@
-# AI Skill 测试框架
+# AI Skill 测试平台
 
-对比不同 AI Skill 对代码生成质量的影响，支持并行执行、Git Worktree 隔离和多格式报告。
+用于量化 Skill 带来的真实提升，支持 A/B Test、双实验模式、Git 交付追踪和平台化管理界面。
+
+当前版本重点能力：
+
+- `技术方案模式`：同一模型下，对比 `普通提示词基线` 与 `Skill 增强` 产出的详细技术方案
+- `Coding 模式`：同一模型下，对比 `普通提示词基线` 与 `Skill 增强` 的真实代码交付
+- `Git 交付记录优先`：测试结果可绑定 worktree、提交 hash 和推送状态，交付以 Git 记录为准
+- `多工具 Skill 扫描`：可扫描项目内 Claude / Cursor / Codex / Gemini Skill，并在前端按工具来源展示、按需勾选引用文件
+- `平台化管理体验`：通过 Web 平台完成配置加载、实验设计、运行监控、交付追踪与结果对比
 
 ## 快速开始
 
@@ -14,8 +22,11 @@ python -m skill_test init
 # 编辑配置
 # vim skill_test.yaml
 
-# 执行测试
-python -m skill_test run -c skill_test.yaml
+# 启动平台
+python -m skill_test serve -c skill_test.yaml
+
+# 或命令行执行测试
+python -m skill_test run -c skill_test.yaml --experiment-mode coding
 ```
 
 ## 命令
@@ -25,6 +36,7 @@ skill-test run       执行测试
 skill-test list      列出 tasks / skills
 skill-test report    从 JSON 重新生成报告
 skill-test init      生成默认配置文件
+skill-test serve     启动 Web 平台
 ```
 
 ### 执行测试
@@ -41,6 +53,9 @@ python -m skill_test run -c config.yaml -r /path/to/repo -m isolated
 
 # 隔离 + 自动提交推送
 python -m skill_test run -c config.yaml -r /path/to/repo --commit --push
+
+# 强制使用技术方案模式
+python -m skill_test run -c config.yaml -r /path/to/repo --experiment-mode solution --commit
 
 # 只运行指定任务和 Skill
 python -m skill_test run -c config.yaml -t task_001 -s write-expert
@@ -74,6 +89,20 @@ python -m skill_test report results/report_20260320.json -f markdown -o report.m
 | `skills[]` | Skill 配置列表 |
 | `git.*` | Git worktree / 提交配置 |
 
+任务新增关键字段：
+
+| 字段 | 说明 |
+|------|------|
+| `tasks[].mode` | `coding` 或 `solution`，用于定义默认实验模式 |
+
+Skill 新增关键字段：
+
+| 字段 | 说明 |
+|------|------|
+| `skills[].tool` | Skill 所属工具，如 `claude` / `cursor` / `codex` |
+| `skills[].origin` | Skill 来源标识，用于平台显示 |
+| `skills[].ref_files` | 可被选择引用的参考文件列表 |
+
 环境变量覆盖：
 
 | 变量 | 对应配置 |
@@ -82,6 +111,14 @@ python -m skill_test report results/report_20260320.json -f markdown -o report.m
 | `SKILL_TEST_MAX_WORKERS` | `max_workers` |
 | `SKILL_TEST_OUTPUT_DIR` | `output_dir` |
 | `SKILL_TEST_CLI_COMMAND` | `cli.command` |
+
+## 平台化工作流
+
+1. 加载 YAML 配置，明确实验任务和默认 Skill 集合
+2. 在平台中选择实验模式：`技术方案模式` 或 `Coding 模式`
+3. 扫描目标项目中的 Skill，按工具来源查看并勾选需要引用的 reference 文件
+4. 启动 A/B Test：基线组使用普通提示词，实验组使用所选 Skill
+5. 在平台中查看实时运行、交付文档、提交 hash、推送状态和最终对比结果
 
 ## 项目结构
 
@@ -96,7 +133,9 @@ skill_test/
 ├── log.py             # 日志配置
 ├── executor.py        # Claude Code 执行器
 ├── git_manager.py     # Git / Worktree 操作
-├── runner.py          # 测试编排器
+├── runner.py          # 测试编排器（含实验模式注入）
+├── server.py          # 平台 API / WebSocket / Web 仪表盘
+├── discovery.py       # 多工具 Skill 扫描与引用发现
 └── reporter.py        # 多格式报告生成
 ```
 
@@ -123,3 +162,12 @@ CLI (cli.py) → TestRunner (runner.py)
 | `parallel` | 线程池并行 | 无需 Git 隔离的批量测试 |
 | `isolated` | Worktree 并行 | 需要独立代码空间的测试 |
 | `auto` | 有 repo 用 isolated，否则 parallel | 默认 |
+
+## 实验模式
+
+| 模式 | 说明 | 默认交付 |
+|------|------|----------|
+| `solution` | 输出详细技术方案，不直接改业务代码 | `.skill-test/deliverables/<task>/<skill>-technical-plan.md` |
+| `coding` | 直接落代码并补充交付说明 | `.skill-test/deliverables/<task>/<skill>-delivery.md` |
+
+两种实验模式都可以与 `baseline` 和任意 Skill 形成 A/B 对照，确保对比对象使用同一模型，仅改变 Skill 使用方式。
